@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pere Privaatne Võidujooks</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
+        
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background: #f0f9ff;
+            background-image: radial-gradient(at 0% 0%, #e0f2fe 0, transparent 50%), radial-gradient(at 100% 100%, #f0f9ff 0, transparent 50%);
+            color: #1e293b;
+            min-height: 100vh;
+        }
+
+        .bubble-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 2rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+            border: 4px solid #fff;
+        }
+
+        .race-track-container {
+            background: rgba(255, 255, 255, 0.5);
+            padding: 1.5rem;
+            border-radius: 1.5rem;
+            border: 2px dashed #cbd5e1;
+            margin-bottom: 1rem;
+        }
+
+        .individual-track {
+            background: #e2e8f0;
+            height: 12px;
+            border-radius: 20px;
+            position: relative;
+            margin: 2rem 0 1rem 0;
+            border: 2px solid #cbd5e1;
+        }
+
+        .runner {
+            position: absolute;
+            top: -45px;
+            transform: translateX(-50%);
+            transition: left 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 10;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0) rotate(0) translateX(-50%); }
+            50% { transform: translateY(-8px) rotate(2deg) translateX(-50%); }
+        }
+
+        .anim-active { animation: bounce 0.6s infinite ease-in-out; }
+        
+        input, select {
+            border-radius: 1rem;
+            border: 2px solid #e2e8f0;
+            padding: 0.6rem;
+            outline: none;
+            background: white;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+            padding: 0.8rem;
+            border-radius: 1rem;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #2563eb;
+        }
+
+        .btn-primary:active { transform: translateY(2px); box-shadow: 0 2px 0 #2563eb; }
+
+        .eye-blink { animation: blink 4s infinite; transform-origin: center; }
+        @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+        
+        #loading-overlay {
+            background: rgba(240, 249, 255, 0.9);
+            z-index: 100;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <!-- Loading Screen -->
+    <div id="loading-overlay" class="fixed inset-0 flex items-center justify-center hidden">
+        <div class="text-center">
+            <i class="fas fa-circle-notch fa-spin text-4xl text-blue-500 mb-4"></i>
+            <p class="font-bold text-slate-600">Sünkroonin pilvega...</p>
+        </div>
+    </div>
+
+    <div id="app" class="max-w-5xl mx-auto">
+        <header class="text-center mb-10">
+            <h1 class="text-5xl md:text-7xl font-bold text-blue-600 drop-shadow-sm mb-2">Pere Võidujooks! 🏁</h1>
+            <p class="text-slate-500 text-xl font-medium">Privaatne pilvepõhine väljakutse</p>
+        </header>
+
+        <!-- Room Access Screen -->
+        <div id="room-screen" class="max-w-md mx-auto bubble-card p-10 text-center">
+            <i class="fas fa-lock text-4xl text-blue-400 mb-4"></i>
+            <h2 class="text-2xl font-bold mb-6">Sisesta Pere Kood</h2>
+            <p class="text-sm text-slate-500 mb-6">Kasutage ühist koodi (nt "Meelis2024"), et näha üksteise progressi.</p>
+            <input type="text" id="room-id-input" class="text-center text-xl font-bold mb-4" placeholder="Teie pere kood">
+            <button onclick="accessRoom()" class="btn-primary w-full text-lg">SISENE TUUPPA</button>
+        </div>
+
+        <!-- Main Content (Hidden until room accessed) -->
+        <div id="main-content" class="space-y-10 hidden">
+            <!-- Tracks Section -->
+            <div class="bubble-card p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold text-slate-700">Võistlusraja Vaade</h3>
+                    <span id="display-room-id" class="text-xs bg-slate-100 px-3 py-1 rounded-full text-slate-400"></span>
+                </div>
+                <div id="tracks-container"></div>
+            </div>
+
+            <!-- Participants Grid -->
+            <div id="participants-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
+
+            <!-- Controls -->
+            <div id="bottom-controls" class="grid grid-cols-1 lg:grid-cols-2 gap-10 hidden">
+                <!-- Weekly Task -->
+                <div class="bubble-card p-8 border-l-[12px] border-red-400">
+                    <div class="flex justify-between items-start mb-6">
+                        <h3 class="text-2xl font-bold text-slate-700">Nädala Kohustus</h3>
+                        <span id="loser-tag" class="bg-red-500 text-white px-4 py-1 rounded-xl font-bold"></span>
+                    </div>
+                    <div class="bg-red-50 p-6 rounded-3xl border-2 border-dashed border-red-200 text-center mb-6">
+                        <p id="weekly-task" class="text-2xl font-bold text-slate-800 leading-tight">---</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="custom-task-input" placeholder="Lisa uus väljakutse...">
+                        <button onclick="addCustomTask()" class="bg-blue-600 text-white px-4 rounded-xl font-bold">Lisa</button>
+                    </div>
+                </div>
+
+                <!-- Update Weight -->
+                <div class="bubble-card p-8 border-l-[12px] border-blue-400">
+                    <h3 class="text-2xl font-bold mb-6 text-slate-700">Märgi uus kaal</h3>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <select id="user-select" class="font-bold text-slate-700"></select>
+                            <input type="number" id="new-weight" step="0.1" class="text-center font-bold" placeholder="kg">
+                        </div>
+                        <button onclick="updateWeight()" class="btn-primary w-full text-lg">SALVESTA JA SÜNKROONI</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // Global configuration from environment
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'pere-kaalu-battle';
+
+        let currentRoomId = '';
+        let roomData = {
+            participants: {
+                Meelis: { joined: false, start: 0, current: 0, target: 0, lastWeek: 0 },
+                Astrid: { joined: false, start: 0, current: 0, target: 0, lastWeek: 0 },
+                Emili: { joined: false, start: 0, current: 0, target: 0, lastWeek: 0 }
+            },
+            tasks: ["Viib terve nädala prügi välja!", "Teeb kõigile pannkooke.", "Peseb nõud."],
+            currentTask: "Ootame kangelasi..."
+        };
+
+        const avatars = {
+            Meelis: `<svg viewBox="0 0 100 100"><path d="M 20 50 Q 20 15 50 15 Q 80 15 80 50 L 80 75 Q 80 85 50 85 Q 20 85 20 75 Z" fill="#fef3c7" stroke="#451a03" stroke-width="2"/><path d="M 20 45 Q 20 15 50 15 Q 80 15 80 45" fill="#475569" /><g class="eye-blink"><circle cx="38" cy="48" r="4" fill="#000" /><circle cx="62" cy="48" r="4" fill="#000" /></g><path d="M 42 70 Q 50 78 58 70" stroke="#451a03" stroke-width="3" fill="none" stroke-linecap="round" /></svg>`,
+            Astrid: `<svg viewBox="0 0 100 100"><path d="M 20 50 Q 20 15 50 15 Q 80 15 80 50 L 80 75 Q 80 85 50 85 Q 20 85 20 75 Z" fill="#fff7ed" stroke="#451a03" stroke-width="2"/><path d="M 15 45 Q 15 5 50 5 Q 85 5 85 45 L 90 60 Q 90 70 80 70 L 20 70 Q 10 70 10 60 Z" fill="#f97316" /><g class="eye-blink"><circle cx="38" cy="50" r="4.5" fill="#000" /><circle cx="62" cy="50" r="4.5" fill="#000" /></g><path d="M 40 72 Q 50 80 60 72" stroke="#be185d" stroke-width="3" fill="none" stroke-linecap="round" /></svg>`,
+            Emili: `<svg viewBox="0 0 100 100"><path d="M 20 45 Q 10 90 20 95 L 80 95 Q 90 90 80 45" fill="#1e1b4b" /><path d="M 22 50 Q 22 20 50 20 Q 78 20 78 50 L 78 75 Q 78 85 50 85 Q 22 85 22 75 Z" fill="#fffbeb" stroke="#451a03" stroke-width="2"/><path d="M 35 20 L 40 10 L 50 15 L 60 10 L 65 20 Z" fill="#facc15" stroke="#854d0e" stroke-width="1" /><g class="eye-blink"><circle cx="40" cy="52" r="5" fill="#000" /><circle cx="60" cy="52" r="5" fill="#000" /></g><path d="M 40 72 Q 50 82 60 72" stroke="#451a03" stroke-width="3" fill="none" stroke-linecap="round" /></svg>`
+        };
+
+        async function accessRoom() {
+            const input = document.getElementById('room-id-input').value.trim();
+            if (!input) return;
+            
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            currentRoomId = input;
+            
+            await signInAnonymously(auth);
+            
+            const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', currentRoomId);
+            
+            onSnapshot(roomDoc, (snapshot) => {
+                if (snapshot.exists()) {
+                    roomData = snapshot.data();
+                } else {
+                    // Initialize new room if it doesn't exist
+                    setDoc(roomDoc, roomData);
+                }
+                document.getElementById('loading-overlay').classList.add('hidden');
+                document.getElementById('room-screen').classList.add('hidden');
+                document.getElementById('main-content').classList.remove('hidden');
+                document.getElementById('display-room-id').innerText = `ID: ${currentRoomId}`;
+                render();
+            }, (error) => {
+                console.error("Firestore error:", error);
+                alert("Ühenduse viga. Kontrolli koodi.");
+                document.getElementById('loading-overlay').classList.add('hidden');
+            });
+        }
+
+        window.joinMember = async (name) => {
+            const start = parseFloat(document.getElementById(`input-start-${name}`).value);
+            const target = parseFloat(document.getElementById(`input-target-${name}`).value);
+
+            if (start > 0 && target > 0) {
+                const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', currentRoomId);
+                const update = {};
+                update[`participants.${name}`] = { joined: true, start, current: start, target, lastWeek: start };
+                await updateDoc(roomDoc, update);
+            }
+        };
+
+        window.updateWeight = async () => {
+            const user = document.getElementById('user-select').value;
+            const weight = parseFloat(document.getElementById('new-weight').value);
+            if (weight > 0) {
+                const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', currentRoomId);
+                const update = {};
+                update[`participants.${user}.lastWeek`] = roomData.participants[user].current;
+                update[`participants.${user}.current`] = weight;
+                await updateDoc(roomDoc, update);
+                document.getElementById('new-weight').value = '';
+            }
+        };
+
+        window.addCustomTask = async () => {
+            const input = document.getElementById('custom-task-input');
+            const val = input.value.trim();
+            if (val) {
+                const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', currentRoomId);
+                await updateDoc(roomDoc, { 
+                    tasks: arrayUnion(val),
+                    currentTask: val
+                });
+                input.value = '';
+            }
+        };
+
+        window.generateTask = async () => {
+            const randomIndex = Math.floor(Math.random() * roomData.tasks.length);
+            const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', currentRoomId);
+            await updateDoc(roomDoc, { currentTask: roomData.tasks[randomIndex] });
+        };
+
+        function calculateProgress(name) {
+            const p = roomData.participants[name];
+            const total = p.start - p.target;
+            const lost = p.start - p.current;
+            if (total <= 0) return 0;
+            return Math.min(100, Math.max(0, (lost / total) * 100)).toFixed(1);
+        }
+
+        function render() {
+            const tracks = document.getElementById('tracks-container');
+            const grid = document.getElementById('participants-grid');
+            const userSelect = document.getElementById('user-select');
+            const bottom = document.getElementById('bottom-controls');
+
+            tracks.innerHTML = ''; grid.innerHTML = ''; userSelect.innerHTML = '';
+            let joinedCount = 0;
+            const participants = [];
+
+            Object.keys(roomData.participants).forEach(name => {
+                const p = roomData.participants[name];
+                const card = document.createElement('div');
+                card.className = `bubble-card p-6 flex flex-col items-center ${p.joined ? 'border-b-8 border-blue-400' : 'bg-slate-50/50 border-dashed border-slate-300'}`;
+                
+                if (p.joined) {
+                    joinedCount++;
+                    const prog = calculateProgress(name);
+                    participants.push({ name, weeklyLoss: ((p.lastWeek - p.current) / p.lastWeek * 100) });
+                    
+                    tracks.innerHTML += `
+                        <div class="race-track-container">
+                            <div class="flex justify-between text-[10px] font-bold text-slate-400 uppercase"><span>${name} rida</span><span>Siht: ${p.target}kg</span></div>
+                            <div class="individual-track">
+                                <div class="absolute right-[-5px] top-[-20px] text-xl">🏁</div>
+                                <div class="runner w-12 h-12 ${parseFloat(prog) > 0 ? 'anim-active' : ''}" style="left: ${prog}%">${avatars[name]}</div>
+                            </div>
+                        </div>`;
+
+                    card.innerHTML = `<div class="w-20 h-20 mb-3">${avatars[name]}</div><h4 class="text-xl font-bold">${name}</h4><div class="text-4xl font-bold text-blue-600 my-2">${prog}%</div>
+                        <div class="grid grid-cols-2 w-full text-center border-t pt-4"><div><p class="text-[10px] text-slate-400">Nüüd</p><p class="font-bold">${p.current}kg</p></div>
+                        <div><p class="text-[10px] text-slate-400">Vaja veel</p><p class="font-bold text-blue-500">${Math.max(0, (p.current - p.target).toFixed(1))}kg</p></div></div>`;
+                    
+                    userSelect.innerHTML += `<option value="${name}">${name}</option>`;
+                } else {
+                    card.innerHTML = `<div class="w-20 h-20 mb-3 opacity-30 grayscale">${avatars[name]}</div><h4 class="text-xl font-bold text-slate-400">${name}</h4>
+                        <div class="mt-4 space-y-2 w-full"><input type="number" id="input-start-${name}" placeholder="Algkaal" class="text-xs">
+                        <input type="number" id="input-target-${name}" placeholder="Sihtkaal" class="text-xs">
+                        <button onclick="joinMember('${name}')" class="bg-green-500 text-white w-full py-2 rounded-xl font-bold text-xs">LIITU</button></div>`;
+                }
+                grid.appendChild(card);
+            });
+
+            if (joinedCount > 0) {
+                bottom.classList.remove('hidden');
+                const loser = participants.sort((a, b) => a.weeklyLoss - b.weeklyLoss)[0];
+                document.getElementById('loser-tag').innerText = loser.name.toUpperCase();
+                document.getElementById('weekly-task').innerText = roomData.currentTask;
+            } else {
+                tracks.innerHTML = '<p class="text-center py-10 text-slate-400 italic">Sisestage andmed, et rada ilmuks!</p>';
+            }
+        }
+
+        window.accessRoom = accessRoom;
+        window.resetApp = () => { if(confirm("See kustutab pilvest kõik andmed! Oled kindel?")) setDoc(doc(db, 'artifacts', appId, 'public', 'data', currentRoomId), roomData); };
+        
+        onAuthStateChanged(auth, (user) => { if (!user) signInAnonymously(auth); });
+    </script>
+</body>
+</html>
