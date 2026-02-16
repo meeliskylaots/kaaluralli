@@ -1,573 +1,118 @@
-<!DOCTYPE html>
-<html lang="et">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pere Suur Võidujooks - Missioon 1. Juuni</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
+/**
+ * Pere Kaaluralli Pilve-Andmebaas (Google Sheets versioon)
+ * See skript võimaldab HTML rakendusel salvestada ja lugeda andmeid tabelist.
+ */
 
-        body {
-            font-family: 'Fredoka', sans-serif;
-            background: #f0f9ff;
-            background-image:
-                radial-gradient(at 0% 0%, #e0f2fe 0, transparent 50%),
-                radial-gradient(at 100% 100%, #f0f9ff 0, transparent 50%);
-            color: #1e293b;
-            min-height: 100vh;
-        }
+const SHEET_NAME = 'data'; // Tabeli lehe nimi
 
-        .bubble-card {
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 2rem;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-            border: 4px solid #fff;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
+/**
+ * Teeb kindlaks, et vajalik tabelileht on olemas.
+ */
+function getSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(SHEET_NAME);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAME);
+  }
+  // Kui tabel on tühi, lisame päised
+  if (sh.getLastRow() === 0) {
+    sh.appendRow(['raceId', 'stateJson', 'updatedAt']);
+  }
+  return sh;
+}
 
-        .race-track-container {
-            background: rgba(255, 255, 255, 0.5);
-            padding: 1.5rem;
-            border-radius: 1.5rem;
-            border: 2px dashed #cbd5e1;
-            margin-bottom: 1rem;
-        }
+/**
+ * Otsib tabelist rida vastavalt võistluse ID-le.
+ */
+function findRowByRaceId_(sh, raceId) {
+  const last = sh.getLastRow();
+  if (last < 2) return -1;
 
-        .individual-track {
-            background: #e2e8f0;
-            height: 12px;
-            border-radius: 20px;
-            position: relative;
-            margin: 2.5rem 0 1rem 0;
-            border: 2px solid #cbd5e1;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
-        }
+  const values = sh.getRange(2, 1, last - 1, 1).getValues();
+  for (let i = 0; i < values.length; i++) {
+    if (String(values[i][0]) === String(raceId)) {
+      return i + 2; // Tagastab rea numbri (indeks + 2, sest päis on esimene rida)
+    }
+  }
+  return -1;
+}
 
-        .runner {
-            position: absolute;
-            top: -45px;
-            transform: translateX(-50%);
-            transition: left 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-            z-index: 10;
-            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
-        }
+/**
+ * GET päring: Andmete lugemine.
+ * Kasutus: URL?raceId=pere-voidujooks
+ */
+function doGet(e) {
+  try {
+    const raceId = (e && e.parameter && e.parameter.raceId) ? String(e.parameter.raceId).trim() : '';
+    if (!raceId) return createResponse_({ ok: false, error: 'raceId puudub' });
 
-        .finish-flag {
-            position: absolute;
-            right: -5px;
-            top: -25px;
-            font-size: 1.5rem;
-        }
+    const sh = getSheet_();
+    const row = findRowByRaceId_(sh, raceId);
 
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0) rotate(0) translateX(-50%); }
-            50% { transform: translateY(-8px) rotate(2deg) translateX(-50%); }
-        }
+    if (row === -1) {
+      return createResponse_({ ok: true, found: false, state: null });
+    }
 
-        .anim-active { animation: bounce 0.6s infinite ease-in-out; }
+    const stateJson = sh.getRange(row, 2).getValue();
+    const updatedAt = sh.getRange(row, 3).getValue();
 
-        input[type="number"], select, input[type="text"] {
-            border-radius: 1rem;
-            border: 2px solid #e2e8f0;
-            padding: 0.6rem;
-            outline: none;
-            transition: all 0.2s;
-            background: white;
-            width: 100%;
-        }
+    let state = null;
+    try {
+      state = JSON.parse(stateJson);
+    } catch (err) {
+      return createResponse_({ ok: false, error: 'Vigane JSON tabelis' });
+    }
 
-        .btn-join {
-            background: #10b981;
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 1rem;
-            font-weight: bold;
-            box-shadow: 0 4px 0 #059669;
-            transition: all 0.1s;
-        }
+    return createResponse_({ ok: true, found: true, state, updatedAt });
+  } catch (ex) {
+    return createResponse_({ ok: false, error: String(ex) });
+  }
+}
 
-        .btn-join:active {
-            transform: translateY(2px);
-            box-shadow: 0 2px 0 #059669;
-        }
+/**
+ * POST päring: Andmete salvestamine.
+ * Võtab vastu JSON paketi: { raceId, state }
+ */
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return createResponse_({ ok: false, error: 'Andmed puuduvad' });
+    }
 
-        .eye-blink { animation: blink 4s infinite; transform-origin: center; }
-        @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+    const body = JSON.parse(e.postData.contents);
+    const raceId = body && body.raceId ? String(body.raceId).trim() : '';
+    const state = body && body.state ? body.state : null;
 
-        .deadline-badge {
-            background: #ef4444;
-            color: white;
-            padding: 0.5rem 1.5rem;
-            border-radius: 9999px;
-            font-weight: bold;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            box-shadow: 0 4px 14px 0 rgba(239, 68, 68, 0.39);
-        }
+    if (!raceId) return createResponse_({ ok: false, error: 'raceId puudub' });
+    if (!state) return createResponse_({ ok: false, error: 'state puudub' });
 
-        #sync-status {
-            position: fixed;
-            bottom: 1rem;
-            right: 1rem;
-            font-size: 0.7rem;
-            padding: 0.3rem 0.8rem;
-            border-radius: 999px;
-            background: white;
-            border: 1px solid #e2e8f0;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            z-index: 100;
-        }
+    // MÄRKUS: Tokeni kontroll on eemaldatud kasutaja soovil mugavuse huvides.
 
-        #backup-modal {
-            background: rgba(0,0,0,0.5);
-            backdrop-filter: blur(4px);
-        }
+    const sh = getSheet_();
+    const row = findRowByRaceId_(sh, raceId);
+    const now = new Date();
+    const jsonString = JSON.stringify(state);
 
-        /* Loading overlay for cloud load */
-        #cloud-loader {
-            position: fixed;
-            inset: 0;
-            background: rgba(240, 249, 255, 0.95);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            transition: opacity 0.5s;
-        }
-    </style>
-</head>
-<body class="p-4 md:p-8">
-    <!-- Cloud Loading Overlay -->
-    <div id="cloud-loader" class="hidden">
-        <div class="text-center">
-            <i class="fas fa-cloud-download-alt fa-spin text-5xl text-blue-500 mb-4"></i>
-            <p class="text-xl font-bold text-slate-700">Laadin andmeid pilvest...</p>
-            <p class="text-sm text-slate-400 mt-2">See võtab vaid hetke</p>
-        </div>
-    </div>
+    if (row === -1) {
+      // Lisame uue rea
+      sh.appendRow([raceId, jsonString, now]);
+    } else {
+      // Uuendame olemasolevat rida
+      sh.getRange(row, 2).setValue(jsonString);
+      sh.getRange(row, 3).setValue(now);
+    }
 
-    <div id="app" class="max-w-5xl mx-auto">
-        <header class="text-center mb-10">
-            <h1 class="text-5xl md:text-7xl font-bold text-blue-600 drop-shadow-sm mb-2">Pere Võidujooks! 🏁</h1>
-            <div class="flex flex-col items-center gap-3">
-                <p id="deadline-label" class="text-slate-500 text-xl font-medium uppercase tracking-widest">Finiš: 1. JUUNI</p>
-                <div id="countdown" class="deadline-badge">
-                    <i class="fas fa-clock"></i>
-                    <span id="days-left">---</span> päeva jäänud
-                </div>
-            </div>
-        </header>
+    return createResponse_({ ok: true, saved: true, updatedAt: now });
+  } catch (ex) {
+    return createResponse_({ ok: false, error: String(ex) });
+  }
+}
 
-        <div class="space-y-10">
-            <!-- Võistlusraja Vaade -->
-            <div class="bubble-card p-8 relative overflow-hidden">
-                <div class="flex justify-between items-center mb-8">
-                    <h3 class="text-2xl font-bold text-slate-700 flex items-center">
-                        <i class="fas fa-road mr-3 text-blue-500"></i> Suur Võistlusraja Vaade
-                    </h3>
-                    <div class="flex gap-2">
-                        <button onclick="initCloudSync()" class="text-blue-500 hover:text-blue-600 transition-colors text-sm font-bold mr-4">
-                            <i class="fas fa-sync-alt"></i> VÄRSKENDA
-                        </button>
-                        <button onclick="toggleBackupModal()" class="text-slate-400 hover:text-blue-500 transition-colors text-sm font-bold">
-                            <i class="fas fa-save mr-1"></i> VARUKOOPIA
-                        </button>
-                    </div>
-                </div>
-                <div id="tracks-container"></div>
-            </div>
-
-            <!-- Osalejate grid -->
-            <div id="participants-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
-
-            <!-- Juhtpaneel -->
-            <div id="bottom-controls" class="grid grid-cols-1 lg:grid-cols-2 gap-10 hidden">
-                <div class="bubble-card p-8 border-l-[12px] border-red-400">
-                    <div class="flex justify-between items-start mb-6">
-                        <div>
-                            <h3 class="text-2xl font-bold text-slate-700">Nädala Kohustus</h3>
-                            <p class="text-sm text-slate-400 italic">Selle sooritab nädala väikseim %-langetaja</p>
-                        </div>
-                        <span id="loser-tag" class="bg-red-500 text-white px-4 py-1 rounded-xl font-bold shadow-lg"></span>
-                    </div>
-                    <div class="bg-gradient-to-br from-red-50 to-orange-50 p-6 rounded-3xl border-2 border-dashed border-red-200 text-center mb-6">
-                        <p id="weekly-task" class="text-2xl font-bold text-slate-800 leading-tight italic">---</p>
-                    </div>
-                    <div class="flex gap-2">
-                        <input type="text" id="custom-task-input" class="text-sm" placeholder="Lisa uus põnev väljakutse..." />
-                        <button onclick="addCustomTask()" class="bg-blue-600 text-white px-4 rounded-xl font-bold hover:bg-blue-700">Lisa</button>
-                    </div>
-                </div>
-
-                <div class="bubble-card p-8 border-l-[12px] border-blue-400">
-                    <h3 class="text-2xl font-bold mb-6 text-slate-700 flex items-center">
-                        <i class="fas fa-weight mr-3 text-blue-500"></i> Märgi uus kaal
-                    </h3>
-                    <div class="space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Liige</label>
-                                <select id="user-select" class="font-bold text-slate-700"></select>
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Uus kaal (kg)</label>
-                                <input type="number" id="new-weight" step="0.1" class="text-center font-bold" placeholder="kg" />
-                            </div>
-                        </div>
-                        <button onclick="updateWeight()" class="bg-blue-600 text-white w-full py-4 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-all">SALVESTA TULEMUS</button>
-                        <button onclick="generateTask()" class="text-slate-400 text-xs w-full hover:text-blue-500 mt-2">
-                            <i class="fas fa-dice mr-1"></i> Loosi uus ülesanne listist
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="text-center pt-12 pb-8">
-                <button onclick="resetApp()" class="text-slate-300 hover:text-red-500 text-xs font-medium uppercase tracking-widest">
-                    <i class="fas fa-power-off mr-2"></i> Kustuta kõik andmed
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Sync Status Indicator -->
-    <div id="sync-status" class="text-slate-400">
-        <i id="sync-icon" class="fas fa-check-circle text-green-500"></i>
-        <span id="sync-text">Andmed sünkroonis</span>
-    </div>
-
-    <!-- Backup Modal -->
-    <div id="backup-modal" class="fixed inset-0 hidden flex items-center justify-center p-4 z-50">
-        <div class="bubble-card max-w-lg w-full p-8 shadow-2xl">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold text-slate-700">Andmete Varukoopia</h3>
-                <button onclick="toggleBackupModal()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
-            </div>
-            <p class="text-sm text-slate-500 mb-4">Kopeeri see tekst varukoopiaks.</p>
-            <textarea id="backup-area" class="w-full h-32 bg-slate-50 border rounded-xl p-3 text-[10px] font-mono mb-6 outline-none focus:border-blue-400" readonly></textarea>
-            <div class="border-t pt-6">
-                <p class="text-sm font-bold text-slate-700 mb-2">Andmete taastamine:</p>
-                <div class="flex gap-2">
-                    <input type="text" id="restore-input" placeholder="Kleebi varukoopia kood" class="flex-1 text-xs" />
-                    <button onclick="restoreData()" class="bg-orange-500 text-white px-4 rounded-xl text-xs font-bold hover:bg-orange-600">TAASTA</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // --- 1) PILVE SEADED (TÖÖTAB GOOGLE APPS SCRIPTIGA) ---
-        const API_URL = "https://script.google.com/macros/s/AKfycbxgNJiFSLMlbr2ukerGOsr4d-td-MczT2AkqPUhRQ3147iHMADqXDIKhBAgejE1ZoqR/exec"; 
-        const RACE_ID = "meie-pere-challenge-2024";
-        const WRITE_TOKEN = "PANE-SIIA-PERE-SALAKOOD"; // SAMA mis Apps Scriptis!
-
-        const STORAGE_KEY = 'pereRaceStateV7';
-
-        const avatars = {
-            Meelis: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M 20 50 Q 20 15 50 15 Q 80 15 80 50 L 80 75 Q 80 85 50 85 Q 20 85 20 75 Z" fill="#fef3c7" stroke="#451a03" stroke-width="2"/><path d="M 20 45 Q 20 15 50 15 Q 80 15 80 45" fill="#475569" /><path d="M 20 45 Q 20 30 30 20 M 80 45 Q 80 30 70 20" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/><g class="eye-blink"><circle cx="38" cy="48" r="4" fill="#000" /><circle cx="62" cy="48" r="4" fill="#000" /></g><path d="M 42 70 Q 50 78 58 70" stroke="#451a03" stroke-width="3" fill="none" stroke-linecap="round" /></svg>`,
-            Astrid: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M 20 50 Q 20 15 50 15 Q 80 15 80 50 L 80 75 Q 80 85 50 85 Q 20 85 20 75 Z" fill="#fff7ed" stroke="#451a03" stroke-width="2"/><path d="M 15 45 Q 15 5 50 5 Q 85 5 85 45 L 90 60 Q 90 70 80 70 L 20 70 Q 10 70 10 60 Z" fill="#f97316" /><g class="eye-blink"><circle cx="38" cy="50" r="4.5" fill="#000" /><circle cx="62" cy="50" r="4.5" fill="#000" /></g><path d="M 40 72 Q 50 80 60 72" stroke="#be185d" stroke-width="3" fill="none" stroke-linecap="round" /></svg>`,
-            Emili: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M 20 45 Q 10 90 20 95 L 80 95 Q 90 90 80 45" fill="#1e1b4b" /><path d="M 22 50 Q 22 20 50 20 Q 78 20 78 50 L 78 75 Q 78 85 50 85 Q 22 85 22 75 Z" fill="#fffbeb" stroke="#451a03" stroke-width="2"/><path d="M 35 20 L 40 10 L 50 15 L 60 10 L 65 20 Z" fill="#facc15" stroke="#854d0e" stroke-width="1" /><g class="eye-blink"><circle cx="40" cy="52" r="5" fill="#000" /><circle cx="60" cy="52" r="5" fill="#000" /><circle cx="42" cy="50" r="1.5" fill="#fff" /><circle cx="62" cy="50" r="1.5" fill="#fff" /></g><path d="M 40 72 Q 50 82 60 72" stroke="#451a03" stroke-width="3" fill="none" stroke-linecap="round" /><circle cx="30" cy="65" r="3" fill="#fecaca" opacity="0.5"/><circle cx="70" cy="65" r="3" fill="#fecaca" opacity="0.5"/></svg>`
-        };
-
-        const DEFAULT_STATE = {
-            participants: {
-                Meelis: { joined: false, start: 0, current: 0, target: 0, weekStart: 0, weekKey: null },
-                Astrid: { joined: false, start: 0, current: 0, target: 0, weekStart: 0, weekKey: null },
-                Emili: { joined: false, start: 0, current: 0, target: 0, weekStart: 0, weekKey: null }
-            },
-            tasks: ["Viib prügi välja!", "Teeb pannkooke.", "Peseb nõud.", "Massaaž võitjale.", "Valib filmi."],
-            currentTask: "Ootame kangelasi...",
-            deadline: "2026-06-01",
-            week: { key: null, task: null }
-        };
-
-        let state = structuredClone(DEFAULT_STATE);
-        let saveTimer = null;
-
-        function pad2(n) { return String(n).padStart(2, '0'); }
-
-        function normalizeState(s) {
-            const out = structuredClone(DEFAULT_STATE);
-            if (s && typeof s === 'object') {
-                if (Array.isArray(s.tasks)) out.tasks = s.tasks;
-                if (s.currentTask) out.currentTask = s.currentTask;
-                if (s.deadline) out.deadline = s.deadline;
-                if (s.week) out.week = { ...out.week, ...s.week };
-                if (s.participants) {
-                    for (const name of Object.keys(out.participants)) {
-                        const p = s.participants[name];
-                        if (p) out.participants[name] = { ...out.participants[name], ...p };
-                    }
-                }
-            }
-            return out;
-        }
-
-        // --- CLOUD SYNC LOGIC ---
-
-        async function cloudLoad() {
-            try {
-                updateSyncStatus("loading", "Laen pilvest...");
-                const url = `${API_URL}?raceId=${encodeURIComponent(RACE_ID)}&t=${Date.now()}`;
-                const res = await fetch(url);
-                const data = await res.json();
-                if (data && data.ok && data.found && data.state) {
-                    updateSyncStatus("success", "Andmed pilvest laetud");
-                    return data.state;
-                }
-                updateSyncStatus("success", "Pilv on tühi");
-                return null;
-            } catch (e) {
-                console.error("Sync error", e);
-                updateSyncStatus("error", "Pilve viga");
-                return null;
-            }
-        }
-
-        async function cloudSave(nextState) {
-            try {
-                updateSyncStatus("loading", "Salvestan...");
-                const res = await fetch(API_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ raceId: RACE_ID, token: WRITE_TOKEN, state: nextState })
-                });
-                const data = await res.json();
-                if (data && data.ok) {
-                    updateSyncStatus("success", "Andmed sünkroonis");
-                } else {
-                    updateSyncStatus("error", "Viga salvestamisel");
-                }
-            } catch (e) {
-                console.error("Sync error", e);
-                updateSyncStatus("error", "Pilve ühenduse viga");
-            }
-        }
-
-        function updateSyncStatus(type, text) {
-            const icon = document.getElementById('sync-icon');
-            const statusText = document.getElementById('sync-text');
-            if (statusText) statusText.innerText = text;
-            if (icon) {
-                if (type === "loading") icon.className = "fas fa-spinner fa-spin text-blue-500";
-                else if (type === "error") icon.className = "fas fa-exclamation-circle text-red-500";
-                else icon.className = "fas fa-check-circle text-green-500";
-            }
-        }
-
-        function saveState() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-            if (saveTimer) clearTimeout(saveTimer);
-            saveTimer = setTimeout(() => cloudSave(state), 1500);
-        }
-
-        // --- GAME LOGIC ---
-
-        function getISOWeekKey(date) {
-            const d = new Date(date);
-            d.setHours(0,0,0,0);
-            d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-            const yearStart = new Date(d.getFullYear(),0,1);
-            const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-            return `${d.getFullYear()}-W${pad2(weekNo)}`;
-        }
-
-        function ensureWeek() {
-            const now = new Date();
-            const currentWeekKey = getISOWeekKey(now);
-            if (state.week.key !== currentWeekKey) {
-                state.week.key = currentWeekKey;
-                state.week.task = state.tasks[Math.floor(Math.random() * state.tasks.length)];
-                state.currentTask = state.week.task;
-                for (const name of Object.keys(state.participants)) {
-                    const p = state.participants[name];
-                    if (p.joined) { 
-                        p.weekStart = p.current; 
-                        p.weekKey = currentWeekKey; 
-                    }
-                }
-                saveState();
-            }
-        }
-
-        function updateCountdown() {
-            const diff = new Date(state.deadline) - new Date();
-            const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-            const el = document.getElementById('days-left');
-            if (el) el.innerText = Math.max(0, days);
-        }
-
-        window.joinMember = (name) => {
-            const s = parseFloat(document.getElementById(`input-start-${name}`).value);
-            const t = parseFloat(document.getElementById(`input-target-${name}`).value);
-            if (s > 0 && t > 0) {
-                state.participants[name] = { 
-                    joined: true, start: s, current: s, target: t, 
-                    weekStart: s, weekKey: getISOWeekKey(new Date()) 
-                };
-                saveState(); render();
-            }
-        };
-
-        window.updateWeight = () => {
-            const user = document.getElementById('user-select').value;
-            const weight = parseFloat(document.getElementById('new-weight').value);
-            if (weight > 0) {
-                state.participants[user].current = weight;
-                saveState(); render();
-                document.getElementById('new-weight').value = '';
-            }
-        };
-
-        window.addCustomTask = () => {
-            const input = document.getElementById('custom-task-input');
-            if (input.value.trim()) {
-                state.tasks.push(input.value.trim());
-                state.currentTask = state.week.task = input.value.trim();
-                input.value = ''; saveState(); render();
-            }
-        };
-
-        window.generateTask = () => {
-            state.currentTask = state.week.task = state.tasks[Math.floor(Math.random() * state.tasks.length)];
-            saveState(); render();
-        };
-
-        function calculateProgress(name) {
-            const p = state.participants[name];
-            const total = p.start - p.target;
-            const lost = p.start - p.current;
-            return total <= 0 ? "0.0" : Math.min(100, Math.max(0, (lost / total) * 100)).toFixed(1);
-        }
-
-        function calculateWeeklyLoss(name) {
-            const p = state.participants[name];
-            if (!p.joined || !p.weekStart) return 0;
-            return ((p.weekStart - p.current) / p.weekStart) * 100;
-        }
-
-        function render() {
-            const tracks = document.getElementById('tracks-container');
-            const grid = document.getElementById('participants-grid');
-            const userSelect = document.getElementById('user-select');
-            const bottom = document.getElementById('bottom-controls');
-
-            if (!tracks || !grid) return;
-
-            tracks.innerHTML = ''; grid.innerHTML = ''; 
-            if (userSelect) userSelect.innerHTML = '';
-            
-            let joinedCount = 0;
-            const joinedList = [];
-
-            Object.keys(state.participants).forEach(name => {
-                const p = state.participants[name];
-                if (p.joined) {
-                    joinedCount++;
-                    const prog = calculateProgress(name);
-                    joinedList.push({ name, weeklyLoss: calculateWeeklyLoss(name) });
-                    tracks.innerHTML += `
-                        <div class="race-track-container">
-                            <div class="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                <span>${name} RADA</span><span>SIHT: ${p.target} KG</span>
-                            </div>
-                            <div class="individual-track">
-                                <div class="finish-flag">🏆</div>
-                                <div class="runner w-14 h-14 ${prog > 0 ? 'anim-active' : ''}" style="left: ${prog}%">${avatars[name]}</div>
-                            </div>
-                        </div>`;
-                    if (userSelect) userSelect.innerHTML += `<option value="${name}">${name}</option>`;
-
-                    grid.innerHTML += `
-                        <div class="bubble-card p-6 flex flex-col items-center border-b-8 border-blue-400 shadow-lg">
-                            <div class="w-24 h-24 mb-4 relative">${avatars[name]}</div>
-                            <h4 class="text-2xl font-bold">${name}</h4>
-                            <div class="text-5xl font-bold text-blue-600 my-3">${prog}%</div>
-                            <div class="w-full bg-slate-100 h-4 rounded-full overflow-hidden border-2 border-slate-200">
-                                <div class="h-full bg-gradient-to-r from-blue-400 to-blue-600" style="width: ${prog}%"></div>
-                            </div>
-                            <div class="grid grid-cols-2 w-full text-center border-t pt-5">
-                                <div><p class="text-[10px] text-slate-400 uppercase">Nüüd</p><p class="text-xl font-bold">${p.current}kg</p></div>
-                                <div><p class="text-[10px] text-slate-400 uppercase">Vaja</p><p class="text-xl font-bold text-blue-500">${Math.max(0, (p.current - p.target).toFixed(1))}kg</p></div>
-                            </div>
-                        </div>`;
-                } else {
-                    grid.innerHTML += `
-                        <div class="bubble-card p-6 flex flex-col items-center bg-slate-50/50 border-dashed border-slate-300">
-                            <div class="w-24 h-24 mb-4 opacity-30 grayscale">${avatars[name]}</div>
-                            <h4 class="text-xl font-bold text-slate-400">${name}</h4>
-                            <div class="mt-4 space-y-2 w-full">
-                                <input type="number" id="input-start-${name}" placeholder="Algkaal" class="text-xs shadow-sm">
-                                <input type="number" id="input-target-${name}" placeholder="Sihtkaal" class="text-xs shadow-sm">
-                                <button onclick="joinMember('${name}')" class="btn-join w-full text-xs">LIITU</button>
-                            </div>
-                        </div>`;
-                }
-            });
-
-            if (joinedCount > 0) {
-                if (bottom) bottom.classList.remove('hidden');
-                const sorted = [...joinedList].sort((a, b) => a.weeklyLoss - b.weeklyLoss);
-                const loserTag = document.getElementById('loser-tag');
-                const weeklyTask = document.getElementById('weekly-task');
-                if (loserTag) loserTag.innerText = sorted[0].name.toUpperCase();
-                if (weeklyTask) weeklyTask.innerText = state.currentTask;
-            } else {
-                if (bottom) bottom.classList.add('hidden');
-                tracks.innerHTML = '<div class="text-center py-10 text-slate-400 italic">Alusta liitumisega altpoolt!</div>';
-            }
-        }
-
-        window.toggleBackupModal = () => {
-            document.getElementById('backup-area').value = btoa(unescape(encodeURIComponent(JSON.stringify(state))));
-            document.getElementById('backup-modal').classList.toggle('hidden');
-        };
-
-        window.restoreData = () => {
-            try {
-                const decoded = JSON.parse(decodeURIComponent(escape(atob(document.getElementById('restore-input').value.trim()))));
-                state = normalizeState(decoded); saveState(); render();
-                document.getElementById('backup-modal').classList.add('hidden');
-                alert("Andmed taastatud!");
-            } catch (e) { alert("Vigane kood!"); }
-        };
-
-        async function initCloudSync() {
-            const loader = document.getElementById('cloud-loader');
-            if (!localStorage.getItem(STORAGE_KEY)) {
-                loader.classList.remove('hidden');
-            }
-            const remote = await cloudLoad();
-            if (remote) {
-                state = normalizeState(remote);
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-                render();
-            }
-            loader.classList.add('hidden');
-        }
-
-        window.resetApp = () => { 
-            if(confirm("Kustutada kõik andmed? See kustutab andmed ka pilvest!")) { 
-                localStorage.removeItem(STORAGE_KEY); 
-                state = structuredClone(DEFAULT_STATE);
-                cloudSave(state).then(() => location.reload());
-            } 
-        };
-
-        window.onload = async () => {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) {
-                state = normalizeState(JSON.parse(saved));
-                render();
-            }
-            await initCloudSync();
-            ensureWeek(); updateCountdown(); setInterval(updateCountdown, 60000); render();
-        };
-    </script>
-</body>
-</html>
+/**
+ * Abifunktsioon JSON vastuse loomiseks.
+ */
+function createResponse_(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
