@@ -95,7 +95,7 @@
     <div id="loading-overlay" class="fixed inset-0 flex items-center justify-center hidden">
         <div class="text-center">
             <i class="fas fa-magic fa-spin text-4xl text-blue-500 mb-4"></i>
-            <p class="font-bold text-slate-600">Võlume andmeid pilvest...</p>
+            <p id="loading-text" class="font-bold text-slate-600">Võlume andmeid pilvest...</p>
         </div>
     </div>
 
@@ -188,8 +188,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // Global configuration
         const firebaseConfig = JSON.parse(__firebase_config);
@@ -215,37 +215,72 @@
             Emili: `<svg viewBox="0 0 100 100"><path d="M 20 45 Q 10 90 20 95 L 80 95 Q 90 90 80 45" fill="#1e1b4b" /><path d="M 22 50 Q 22 20 50 20 Q 78 20 78 50 L 78 75 Q 78 85 50 85 Q 22 85 22 75 Z" fill="#fffbeb" stroke="#451a03" stroke-width="2"/><path d="M 25 20 L 35 12 L 50 18 L 65 12 L 75 20" fill="#facc15" stroke="#854d0e" stroke-width="1"/><g class="eye-blink"><circle cx="40" cy="52" r="5" fill="#000" /><circle cx="60" cy="52" r="5" fill="#000" /></g><path d="M 40 72 Q 50 82 60 72" stroke="#451a03" stroke-width="3" fill="none" stroke-linecap="round" /></svg>`
         };
 
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (e) {
+                console.error("Auth failed:", e);
+            }
+        }
+
         async function accessRoom() {
             const input = document.getElementById('room-id-input').value.trim();
             if (!input) return;
             
-            document.getElementById('loading-overlay').classList.remove('hidden');
+            const overlay = document.getElementById('loading-overlay');
+            overlay.classList.remove('hidden');
             currentRoomId = input;
             
-            await signInAnonymously(auth);
-            
-            const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', currentRoomId);
-            
-            onSnapshot(roomDoc, (snapshot) => {
-                if (snapshot.exists()) {
-                    roomData = snapshot.data();
-                } else {
-                    setDoc(roomDoc, roomData);
+            try {
+                // Ensure auth is ready
+                if (!auth.currentUser) {
+                    await initAuth();
                 }
-                localStorage.setItem('pereChallengeRoomId', currentRoomId);
-                document.getElementById('loading-overlay').classList.add('hidden');
-                document.getElementById('room-screen').classList.add('hidden');
-                document.getElementById('main-content').classList.remove('hidden');
-                document.getElementById('display-room-id').innerText = `GRUPP: ${currentRoomId}`;
-                render();
-            }, (error) => {
-                console.error("Firestore error:", error);
-                alert("Ühenduse viga. Kontrolli koodi.");
-                document.getElementById('loading-overlay').classList.add('hidden');
-            });
+
+                if (!auth.currentUser) {
+                    throw new Error("Autentimine ebaõnnestus");
+                }
+
+                const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', currentRoomId);
+                
+                // Get initial data
+                const initialSnap = await getDoc(roomDocRef);
+                if (!initialSnap.exists()) {
+                    await setDoc(roomDocRef, roomData);
+                } else {
+                    roomData = initialSnap.data();
+                }
+
+                // Start snapshot listener
+                onSnapshot(roomDocRef, (snapshot) => {
+                    if (snapshot.exists()) {
+                        roomData = snapshot.data();
+                        render();
+                    }
+                    localStorage.setItem('pereChallengeRoomId', currentRoomId);
+                    overlay.classList.add('hidden');
+                    document.getElementById('room-screen').classList.add('hidden');
+                    document.getElementById('main-content').classList.remove('hidden');
+                    document.getElementById('display-room-id').innerText = `GRUPP: ${currentRoomId}`;
+                }, (error) => {
+                    console.error("Snapshot error:", error);
+                    overlay.classList.add('hidden');
+                    alert("Andmete lugemise viga. Proovi uuesti.");
+                });
+
+            } catch (error) {
+                console.error("Access room error:", error);
+                overlay.classList.add('hidden');
+                alert("Viga: " + error.message);
+            }
         }
 
         window.joinMember = async (name) => {
+            if (!auth.currentUser) return;
             const start = parseFloat(document.getElementById(`input-start-${name}`).value);
             const target = parseFloat(document.getElementById(`input-target-${name}`).value);
             if (start > 0 && target > 0) {
@@ -257,6 +292,7 @@
         };
 
         window.updateWeight = async () => {
+            if (!auth.currentUser) return;
             const user = document.getElementById('user-select').value;
             const weight = parseFloat(document.getElementById('new-weight').value);
             if (weight > 0) {
@@ -270,6 +306,7 @@
         };
 
         window.addCustomTask = async () => {
+            if (!auth.currentUser) return;
             const input = document.getElementById('custom-task-input');
             const val = input.value.trim();
             if (val) {
@@ -280,6 +317,7 @@
         };
 
         window.generateTask = async () => {
+            if (!auth.currentUser) return;
             const randomIndex = Math.floor(Math.random() * roomData.tasks.length);
             const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', currentRoomId);
             await updateDoc(roomDoc, { currentTask: roomData.tasks[randomIndex] });
@@ -304,6 +342,8 @@
             const userSelect = document.getElementById('user-select');
             const bottom = document.getElementById('bottom-controls');
 
+            if (!tracks || !grid || !userSelect || !bottom) return;
+
             tracks.innerHTML = ''; grid.innerHTML = ''; userSelect.innerHTML = '';
             let joinedCount = 0;
             const participants = [];
@@ -320,45 +360,4 @@
                     
                     tracks.innerHTML += `
                         <div class="race-track-container">
-                            <div class="flex justify-between text-[10px] font-bold text-slate-400 uppercase"><span>${name} rida</span><span>Siht: ${p.target}kg</span></div>
-                            <div class="individual-track">
-                                <div class="absolute right-[-5px] top-[-25px] text-2xl">🏆</div>
-                                <div class="runner w-12 h-12 ${parseFloat(prog) > 0 ? 'anim-active' : ''}" style="left: ${prog}%">${avatars[name]}</div>
-                            </div>
-                        </div>`;
-
-                    card.innerHTML = `<div class="w-20 h-20 mb-3">${avatars[name]}</div><h4 class="text-xl font-bold">${name}</h4><div class="text-4xl font-bold text-blue-600 my-2">${prog}%</div>
-                        <div class="grid grid-cols-2 w-full text-center border-t pt-4"><div><p class="text-[10px] text-slate-400">Nüüd</p><p class="font-bold">${p.current}kg</p></div>
-                        <div><p class="text-[10px] text-slate-400">Vaja veel</p><p class="font-bold text-blue-500">${Math.max(0, (p.current - p.target).toFixed(1))}kg</p></div></div>`;
-                    
-                    userSelect.innerHTML += `<option value="${name}">${name}</option>`;
-                } else {
-                    card.innerHTML = `<div class="w-20 h-20 mb-3 opacity-30 grayscale">${avatars[name]}</div><h4 class="text-xl font-bold text-slate-400">${name}</h4>
-                        <div class="mt-4 space-y-2 w-full"><input type="number" id="input-start-${name}" placeholder="Algkaal" class="text-xs">
-                        <input type="number" id="input-target-${name}" placeholder="Sihtkaal" class="text-xs">
-                        <button onclick="joinMember('${name}')" class="bg-emerald-500 text-white w-full py-2 rounded-xl font-bold text-xs shadow-md">LIITU</button></div>`;
-                }
-                grid.appendChild(card);
-            });
-
-            if (joinedCount > 0) {
-                bottom.classList.remove('hidden');
-                const loser = participants.sort((a, b) => a.weeklyLoss - b.weeklyLoss)[0];
-                document.getElementById('loser-tag').innerText = loser.name.toUpperCase();
-                document.getElementById('weekly-task').innerText = roomData.currentTask;
-            } else {
-                tracks.innerHTML = '<p class="text-center py-10 text-slate-400 italic">Sisestage andmed, et alustada võistlust!</p>';
-            }
-        }
-
-        // Auto-login if Room ID exists
-        if (currentRoomId) {
-            document.getElementById('room-id-input').value = currentRoomId;
-            accessRoom();
-        }
-
-        window.accessRoom = accessRoom;
-        onAuthStateChanged(auth, (user) => { if (!user) signInAnonymously(auth); });
-    </script>
-</body>
-</html>
+                            <div class="flex justify-between text-[10px] font-bold text-slate-400 uppercase"><span>${name} rida</span><span>Siht:
