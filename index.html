@@ -189,7 +189,10 @@
                             <h3 class="text-2xl font-bold text-slate-700">Nädala Kohustus</h3>
                             <p class="text-sm text-slate-400 italic">Selle sooritab väikseim langeja:</p>
                         </div>
-                        <span id="loser-tag" class="bg-red-500 text-white px-4 py-1 rounded-xl font-bold shadow-lg"></span>
+                        <div class="text-right">
+                            <span id="loser-tag" class="bg-red-500 text-white px-4 py-1 rounded-xl font-bold shadow-lg block mb-1"></span>
+                            <span id="loser-stats" class="text-[10px] font-bold text-red-400 uppercase"></span>
+                        </div>
                     </div>
                     <div class="bg-red-50 p-6 rounded-3xl border-2 border-dashed border-red-200 text-center mb-6">
                         <p id="weekly-task" class="text-2xl font-bold text-slate-800 leading-tight">---</p>
@@ -244,7 +247,6 @@
         const RACE_ID = "meie-pere-ralli-2024";
         const STORAGE_KEY = 'pereRaceStateV7';
 
-        // Heliefekt (aplaus)
         const applauseAudio = new Audio('https://www.myinstants.com/media/sounds/applause-8.mp3');
 
         const avatars = {
@@ -316,13 +318,11 @@
             if (members.length === 0) return;
             const winner = members.sort((a,b) => b.delta - a.delta)[0];
             
-            // Heli ja konfetid
-            applauseAudio.play().catch(e => console.log("Heli mängimine ebaõnnestus"));
+            applauseAudio.play().catch(e => console.log("Heli viga"));
             
             const duration = 5 * 1000;
             const animationEnd = Date.now() + duration;
             const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 2000 };
-
             const randomInRange = (min, max) => Math.random() * (max - min) + min;
 
             const interval = setInterval(function() {
@@ -372,45 +372,102 @@
                 if (p.joined) {
                     joinedCount++;
                     const prog = calculateProgress(name);
+                    const weeklyKg = (p.weekStart - p.current).toFixed(1);
                     const weeklyDelta = p.weekStart ? ((p.weekStart - p.current) / p.weekStart) * 100 : 0;
-                    members.push({ name, weeklyLoss: weeklyDelta });
-                    tracks.innerHTML += `<div class="race-track-container"><div class="flex justify-between text-[10px] font-bold uppercase"><span>${name}</span><span>Siht: ${p.target}kg</span></div><div class="individual-track"><div class="absolute right-0 top-[-25px] text-2xl">🏆</div><div class="runner w-14 h-14 ${prog > 0 ? 'anim-active' : ''}" style="left: ${prog}%">${avatars[name]}</div></div></div>`;
+                    members.push({ name, weeklyLoss: weeklyDelta, weeklyKg: weeklyKg });
+                    
+                    tracks.innerHTML += `
+                        <div class="race-track-container">
+                            <div class="flex justify-between text-[10px] font-bold uppercase tracking-tighter">
+                                <span>${name}</span>
+                                <span class="${weeklyKg >= 0 ? 'text-green-500' : 'text-red-500'} font-bold">
+                                    Nädala muutus: ${weeklyKg > 0 ? '-' : ''}${Math.abs(weeklyKg)}kg
+                                </span>
+                                <span>Siht: ${p.target}kg</span>
+                            </div>
+                            <div class="individual-track">
+                                <div class="absolute right-0 top-[-25px] text-2xl">🏆</div>
+                                <div class="runner w-14 h-14 ${prog > 0 ? 'anim-active' : ''}" style="left: ${prog}%">${avatars[name]}</div>
+                            </div>
+                        </div>`;
+                    
                     if (userSelect) userSelect.innerHTML += `<option value="${name}">${name}</option>`;
-                    grid.innerHTML += `<div class="bubble-card p-6 flex flex-col items-center border-b-8 border-blue-400 shadow-lg"><div class="w-24 h-24 mb-4">${avatars[name]}</div><h4 class="text-2xl font-bold">${name}</h4><div class="text-5xl font-bold text-blue-600 my-3">${prog}%</div><div class="w-full bg-slate-100 h-4 rounded-full overflow-hidden border-2"><div class="h-full bg-gradient-to-r from-blue-400 to-blue-600" style="width: ${prog}%"></div></div><div class="grid grid-cols-2 w-full text-center mt-5"><div><p class="text-[10px]">HETKEL</p><p class="font-bold">${p.current}kg</p></div><div><p class="text-[10px]">VAJA</p><p class="font-bold text-blue-500">${Math.max(0, (p.current - p.target).toFixed(1))}kg</p></div></div></div>`;
+                    
+                    grid.innerHTML += `
+                        <div class="bubble-card p-6 flex flex-col items-center border-b-8 border-blue-400 shadow-lg relative overflow-hidden">
+                            ${weeklyKg > 0 ? '<div class="absolute top-2 right-2 text-green-500 text-xs font-bold"><i class="fas fa-arrow-down"></i> HEA TÖÖ</div>' : ''}
+                            <div class="w-24 h-24 mb-4 relative">${avatars[name]}</div>
+                            <h4 class="text-2xl font-bold">${name}</h4>
+                            <div class="text-5xl font-bold text-blue-600 my-3">${prog}%</div>
+                            <div class="w-full bg-slate-100 h-4 rounded-full overflow-hidden border-2">
+                                <div class="h-full bg-gradient-to-r from-blue-400 to-blue-600" style="width: ${prog}%"></div>
+                            </div>
+                            <div class="grid grid-cols-2 w-full text-center mt-5">
+                                <div><p class="text-[10px] uppercase">Hetkel</p><p class="font-bold">${p.current}kg</p></div>
+                                <div><p class="text-[10px] uppercase">Vaja</p><p class="font-bold text-blue-500">${Math.max(0, (p.current - p.target).toFixed(1))}kg</p></div>
+                            </div>
+                        </div>`;
                 } else {
-                    grid.innerHTML += `<div class="bubble-card p-6 flex flex-col items-center opacity-60"><div class="w-20 h-20 mb-4 opacity-30">${avatars[name]}</div><h4 class="text-xl font-bold">${name}</h4><div class="mt-4 space-y-2 w-full"><input type="number" id="input-start-${name}" placeholder="Algkaal" class="text-xs" /><input type="number" id="input-target-${name}" placeholder="Sihtkaal" class="text-xs" /><button onclick="joinMember('${name}')" class="btn-join w-full py-2">LIITU</button></div></div>`;
+                    grid.innerHTML += `
+                        <div class="bubble-card p-6 flex flex-col items-center opacity-60">
+                            <div class="w-20 h-20 mb-4 opacity-30">${avatars[name]}</div>
+                            <h4 class="text-xl font-bold">${name}</h4>
+                            <div class="mt-4 space-y-2 w-full">
+                                <input type="number" id="input-start-${name}" placeholder="Algkaal" class="text-xs" />
+                                <input type="number" id="input-target-${name}" placeholder="Sihtkaal" class="text-xs" />
+                                <button onclick="joinMember('${name}')" class="btn-join w-full py-2">LIITU</button>
+                            </div>
+                        </div>`;
                 }
             });
 
             if (joinedCount > 0) {
                 document.getElementById('bottom-controls').classList.remove('hidden');
                 const sorted = members.sort((a,b) => a.weeklyLoss - b.weeklyLoss);
-                document.getElementById('loser-tag').innerText = sorted[0].name.toUpperCase();
+                const loser = sorted[0];
+                document.getElementById('loser-tag').innerText = loser.name.toUpperCase();
+                document.getElementById('loser-stats').innerText = `(${loser.weeklyKg > 0 ? '-' : '+'}${Math.abs(loser.weeklyKg)}kg sel nädalal)`;
                 document.getElementById('weekly-task').innerText = state.currentTask;
             } else {
-                tracks.innerHTML = '<div class="text-center py-10 text-slate-400 italic">Alusta liitumisega altpoolt!</div>';
+                tracks.innerHTML = '<div class="text-center py-10 text-slate-400 italic font-medium tracking-wide uppercase text-[10px]">Alusta liitumisega altpoolt!</div>';
             }
         }
 
         window.joinMember = (name) => {
             const s = parseFloat(document.getElementById(`input-start-${name}`).value);
             const t = parseFloat(document.getElementById(`input-target-${name}`).value);
-            if (s > 0 && t > 0) { state.participants[name] = { joined: true, start: s, current: s, target: t, weekStart: s }; saveState(); render(); }
+            if (s > 0 && t > 0) { 
+                state.participants[name] = { joined: true, start: s, current: s, target: t, weekStart: s }; 
+                saveState(); render(); 
+            }
         };
 
         window.updateWeight = () => {
             const u = document.getElementById('user-select').value;
             const w = parseFloat(document.getElementById('new-weight').value);
-            if (w > 0) { state.participants[u].current = w; saveState(); render(); document.getElementById('new-weight').value = ''; }
+            if (w > 0) { 
+                state.participants[u].current = w; 
+                saveState(); render(); 
+                document.getElementById('new-weight').value = ''; 
+            }
         };
 
         window.addCustomTask = () => {
             const input = document.getElementById('custom-task-input');
-            if (input.value.trim()) { state.tasks.push(input.value.trim()); state.currentTask = input.value.trim(); input.value = ''; saveState(); render(); }
+            const val = input.value.trim();
+            if (val) {
+                state.tasks.push(val);
+                state.currentTask = val;
+                input.value = '';
+                saveState(); render();
+            }
         };
 
         window.generateTask = () => {
-            if (state.tasks.length > 0) { state.currentTask = state.tasks[Math.floor(Math.random() * state.tasks.length)]; saveState(); render(); }
+            if (state.tasks.length > 0) {
+                state.currentTask = state.tasks[Math.floor(Math.random() * state.tasks.length)];
+                saveState(); render();
+            }
         };
 
         async function initCloudSync() {
