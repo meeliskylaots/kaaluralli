@@ -12,7 +12,9 @@
         body {
             font-family: 'Fredoka', sans-serif;
             background: #f0f9ff;
-            background-image: radial-gradient(at 0% 0%, #e0f2fe 0, transparent 50%), radial-gradient(at 100% 100%, #f0f9ff 0, transparent 50%);
+            background-image: 
+                radial-gradient(at 0% 0%, #e0f2fe 0, transparent 50%), 
+                radial-gradient(at 100% 100%, #f0f9ff 0, transparent 50%);
             color: #1e293b;
             min-height: 100vh;
         }
@@ -20,8 +22,9 @@
         .bubble-card {
             background: rgba(255, 255, 255, 0.9);
             border-radius: 2rem;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
             border: 4px solid #fff;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
         .race-track-container {
@@ -37,9 +40,9 @@
             height: 12px;
             border-radius: 20px;
             position: relative;
-            margin: 2.5rem 0 1rem 0;
+            margin: 2rem 0 1rem 0;
             border: 2px solid #cbd5e1;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .runner {
@@ -48,6 +51,14 @@
             transform: translateX(-50%);
             transition: left 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
             z-index: 10;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+        }
+
+        .finish-flag {
+            position: absolute;
+            right: -5px;
+            top: -25px;
+            font-size: 1.5rem;
         }
 
         @keyframes bounce {
@@ -57,297 +68,323 @@
 
         .anim-active { animation: bounce 0.6s infinite ease-in-out; }
         
-        input, select {
+        input[type="number"], select, input[type="text"] {
             border-radius: 1rem;
             border: 2px solid #e2e8f0;
             padding: 0.6rem;
             outline: none;
+            transition: all 0.2s;
             background: white;
             width: 100%;
-            transition: border-color 0.2s;
         }
 
-        input:focus { border-color: #3b82f6; }
-
-        .btn-primary {
-            background: #3b82f6;
+        .btn-join {
+            background: #10b981;
             color: white;
-            padding: 0.8rem;
+            padding: 0.5rem 1rem;
             border-radius: 1rem;
             font-weight: bold;
-            box-shadow: 0 4px 0 #2563eb;
+            box-shadow: 0 4px 0 #059669;
             transition: all 0.1s;
         }
 
-        .btn-primary:active { transform: translateY(2px); box-shadow: 0 2px 0 #2563eb; }
+        .btn-join:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #059669;
+        }
 
         .eye-blink { animation: blink 4s infinite; transform-origin: center; }
         @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
-        
-        #loading-overlay {
-            background: rgba(240, 249, 255, 1);
-            z-index: 100;
-        }
     </style>
 </head>
 <body class="p-4 md:p-8">
-    <!-- Laadimiskuva -->
-    <div id="loading-overlay" class="fixed inset-0 flex items-center justify-center">
-        <div class="text-center">
-            <i class="fas fa-magic fa-spin text-4xl text-blue-500 mb-4"></i>
-            <p id="loading-text" class="font-bold text-slate-600">Ühendan pere andmebaasiga...</p>
-        </div>
-    </div>
-
     <div id="app" class="max-w-5xl mx-auto">
+        
         <header class="text-center mb-10">
             <h1 class="text-5xl md:text-7xl font-bold text-blue-600 drop-shadow-sm mb-2">Pere Võidujooks! 🏁</h1>
-            <p class="text-slate-500 text-xl font-medium">Teie ühine teekond tervislikuma eluni</p>
+            <p class="text-slate-500 text-xl font-medium">Igaühel oma rada, üks ühine eesmärk!</p>
         </header>
 
-        <!-- Peamine sisu -->
-        <div id="main-content" class="space-y-10">
-            <!-- Rajad -->
-            <div class="bubble-card p-8">
-                <h3 class="text-2xl font-bold text-slate-700 mb-10">Võistlusraja Vaade</h3>
-                <div id="tracks-container"></div>
+        <!-- Main Content Area -->
+        <div class="space-y-10">
+            
+            <!-- Global Race Tracks Section -->
+            <div class="bubble-card p-8 relative overflow-hidden">
+                <h3 class="text-2xl font-bold mb-8 text-slate-700 flex items-center">
+                    <i class="fas fa-road mr-3 text-blue-500"></i> Suur Võistlusraja Vaade
+                </h3>
+                
+                <div id="tracks-container">
+                    <!-- Individual tracks will be injected here -->
+                </div>
             </div>
 
-            <!-- Osalejad -->
-            <div id="participants-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
+            <!-- Participants Grid -->
+            <div id="participants-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Participant cards (Setup or Progress) injected here -->
+            </div>
 
-            <!-- Juhtpaneel -->
+            <!-- Bottom Section: Tasks & Updates -->
             <div id="bottom-controls" class="grid grid-cols-1 lg:grid-cols-2 gap-10 hidden">
-                <!-- Nädala ülesanne -->
+                <!-- Weekly Task -->
                 <div class="bubble-card p-8 border-l-[12px] border-red-400">
                     <div class="flex justify-between items-start mb-6">
                         <div>
                             <h3 class="text-2xl font-bold text-slate-700">Nädala Kohustus</h3>
-                            <p class="text-xs text-slate-400">Selle sooritab väikseim langeja</p>
+                            <p class="text-sm text-slate-400">Selle sooritab väikseim langeja</p>
                         </div>
-                        <span id="loser-tag" class="bg-red-500 text-white px-4 py-1 rounded-xl font-bold shadow-md"></span>
+                        <span id="loser-tag" class="bg-red-500 text-white px-6 py-2 rounded-2xl text-lg font-bold shadow-lg"></span>
                     </div>
-                    <div class="bg-red-50 p-6 rounded-3xl border-2 border-dashed border-red-200 text-center mb-6">
-                        <p id="weekly-task" class="text-2xl font-bold text-slate-800 leading-tight italic">---</p>
+                    <div class="bg-gradient-to-br from-red-50 to-orange-50 p-6 rounded-3xl border-2 border-dashed border-red-200 text-center mb-6">
+                        <p id="weekly-task" class="text-2xl font-bold text-slate-800 leading-tight">---</p>
                     </div>
                     <div class="flex gap-2">
-                        <input type="text" id="custom-task-input" class="text-sm" placeholder="Lisa uus väljakutse...">
-                        <button onclick="addCustomTask()" class="bg-blue-600 text-white px-6 rounded-xl font-bold hover:bg-blue-700 shadow-sm transition-all">Lisa</button>
+                        <input type="text" id="custom-task-input" class="text-sm" placeholder="Lisa uus põnev väljakutse...">
+                        <button onclick="addCustomTask()" class="bg-blue-600 text-white px-4 rounded-xl font-bold hover:bg-blue-700">Lisa</button>
                     </div>
                 </div>
 
-                <!-- Kaalu uuendamine -->
+                <!-- Weight Update -->
                 <div class="bubble-card p-8 border-l-[12px] border-blue-400">
                     <h3 class="text-2xl font-bold mb-6 text-slate-700 flex items-center">
-                        <i class="fas fa-weight mr-3 text-blue-500"></i> Märgi uus kaal
+                        <i class="fas fa-edit mr-3 text-blue-500"></i> Märgi uus kaal
                     </h3>
-                    <div class="space-y-6">
+                    <div class="space-y-4">
                         <div class="grid grid-cols-2 gap-4">
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Liige</label>
-                                <select id="user-select" class="font-bold text-slate-700"></select>
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Uus kaal (kg)</label>
-                                <input type="number" id="new-weight" step="0.1" class="text-center font-bold text-lg" placeholder="00.0">
-                            </div>
+                            <select id="user-select" class="font-bold text-slate-700"></select>
+                            <input type="number" id="new-weight" step="0.1" class="text-center font-bold" placeholder="kg">
                         </div>
-                        <button onclick="updateWeight()" class="btn-primary w-full text-lg shadow-xl">SALVESTA JA SÜNKROONI</button>
-                        <div class="text-center">
-                            <button onclick="generateTask()" class="text-slate-300 text-[10px] hover:text-blue-500 uppercase font-bold tracking-tighter">
-                                <i class="fas fa-dice mr-1"></i> Vali uus ülesanne listist
-                            </button>
-                        </div>
+                        <button onclick="updateWeight()" class="bg-blue-600 text-white w-full py-4 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-all">SALVESTA TULEMUS</button>
+                        <button onclick="generateTask()" class="text-slate-400 text-xs w-full hover:text-blue-500">
+                            <i class="fas fa-dice mr-1"></i> Loosi uus ülesanne
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Jalus -->
-            <div class="text-center pt-8 pb-4">
-                <p class="text-[10px] text-slate-300 uppercase tracking-[0.2em]">Sinu andmed on turvalises Google pilves</p>
+            <div class="text-center pt-12">
+                <button onclick="resetApp()" class="text-slate-300 hover:text-red-500 text-xs font-medium uppercase tracking-widest">
+                    <i class="fas fa-power-off mr-2"></i> Kustuta kõik andmed
+                </button>
             </div>
         </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    <script>
+        const avatars = {
+            Meelis: `
+                <svg viewBox="0 0 100 100" class="w-full h-full">
+                    <path d="M 20 50 Q 20 15 50 15 Q 80 15 80 50 L 80 75 Q 80 85 50 85 Q 20 85 20 75 Z" fill="#fef3c7" stroke="#451a03" stroke-width="2"/>
+                    <path d="M 20 45 Q 20 15 50 15 Q 80 15 80 45" fill="#475569" />
+                    <path d="M 20 45 Q 20 30 30 20 M 80 45 Q 80 30 70 20" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/>
+                    <g class="eye-blink"><circle cx="38" cy="48" r="4" fill="#000" /><circle cx="62" cy="48" r="4" fill="#000" /></g>
+                    <path d="M 42 70 Q 50 78 58 70" stroke="#451a03" stroke-width="3" fill="none" stroke-linecap="round" />
+                </svg>`,
+            Astrid: `
+                <svg viewBox="0 0 100 100" class="w-full h-full">
+                    <path d="M 20 50 Q 20 15 50 15 Q 80 15 80 50 L 80 75 Q 80 85 50 85 Q 20 85 20 75 Z" fill="#fff7ed" stroke="#451a03" stroke-width="2"/>
+                    <path d="M 15 45 Q 15 5 50 5 Q 85 5 85 45 L 90 60 Q 90 70 80 70 L 20 70 Q 10 70 10 60 Z" fill="#f97316" />
+                    <g class="eye-blink"><circle cx="38" cy="50" r="4.5" fill="#000" /><circle cx="62" cy="50" r="4.5" fill="#000" /></g>
+                    <path d="M 40 72 Q 50 80 60 72" stroke="#be185d" stroke-width="3" fill="none" stroke-linecap="round" />
+                </svg>`,
+            Emili: `
+                <svg viewBox="0 0 100 100" class="w-full h-full">
+                    <path d="M 20 45 Q 10 90 20 95 L 80 95 Q 90 90 80 45" fill="#1e1b4b" />
+                    <path d="M 22 50 Q 22 20 50 20 Q 78 20 78 50 L 78 75 Q 78 85 50 85 Q 22 85 22 75 Z" fill="#fffbeb" stroke="#451a03" stroke-width="2"/>
+                    <path d="M 35 20 L 40 10 L 50 15 L 60 10 L 65 20 Z" fill="#facc15" stroke="#854d0e" stroke-width="1" />
+                    <g class="eye-blink"><circle cx="40" cy="52" r="5" fill="#000" /><circle cx="60" cy="52" r="5" fill="#000" /></g>
+                    <path d="M 40 72 Q 50 82 60 72" stroke="#451a03" stroke-width="3" fill="none" stroke-linecap="round" />
+                </svg>`
+        };
 
-        // TÄHTIS: GitHubis majutades veendu, et Firebase konfig on olemas.
-        // Kui kood GitHubis ei tööta, kopeeri siia oma Firebase projekti andmed.
-        const firebaseConfig = JSON.parse(__firebase_config);
-        
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'pere-kaalu-battle-v1';
-
-        // Kasutame ühte kindlat ID-d, et sisselogimist poleks vaja
-        const currentRoomId = 'pere-pohikaalu-valjakutse';
-        
-        let roomData = {
+        let state = {
             participants: {
                 Meelis: { joined: false, start: 0, current: 0, target: 0, lastWeek: 0 },
                 Astrid: { joined: false, start: 0, current: 0, target: 0, lastWeek: 0 },
                 Emili: { joined: false, start: 0, current: 0, target: 0, lastWeek: 0 }
             },
-            tasks: ["Viib terve nädala prügi välja!", "Teeb kõigile pannkooke.", "Peseb nõud."],
-            currentTask: "Ootame kangelasi..."
+            tasks: [
+                "Viib terve nädala prügi välja!",
+                "Teeb pühapäeval kõigile pannkooke.",
+                "Peseb 3 päeva järjest kõik nõud.",
+                "Teeb võitjale jalamassaaži.",
+                "Valib järgmise perefilmi ja teeb snäkid.",
+                "Peab tegema 20 kükki iga kord kui kööki läheb."
+            ],
+            currentTask: "Ootame esimesi kangelasi..."
         };
 
-        const avatars = {
-            Meelis: `<svg viewBox="0 0 100 100"><path d="M 20 50 Q 20 15 50 15 Q 80 15 80 50 L 80 75 Q 80 85 50 85 Q 20 85 20 75 Z" fill="#fef3c7" stroke="#451a03" stroke-width="2"/><path d="M 20 45 Q 20 15 50 15 Q 80 15 80 45" fill="#475569" /><g class="eye-blink"><circle cx="38" cy="48" r="4" fill="#000" /><circle cx="62" cy="48" r="4" fill="#000" /></g><path d="M 42 70 Q 50 78 58 70" stroke="#451a03" stroke-width="3" fill="none" stroke-linecap="round" /></svg>`,
-            Astrid: `<svg viewBox="0 0 100 100"><path d="M 20 50 Q 20 15 50 15 Q 80 15 80 50 L 80 75 Q 80 85 50 85 Q 20 85 20 75 Z" fill="#fff7ed" stroke="#451a03" stroke-width="2"/><path d="M 15 45 Q 15 5 50 5 Q 85 5 85 45 L 90 60 Q 90 70 80 70 L 20 70 Q 10 70 10 60 Z" fill="#f97316" /><g class="eye-blink"><circle cx="38" cy="50" r="4.5" fill="#000" /><circle cx="62" cy="50" r="4.5" fill="#000" /></g><path d="M 40 72 Q 50 80 60 72" stroke="#be185d" stroke-width="3" fill="none" stroke-linecap="round" /></svg>`,
-            Emili: `<svg viewBox="0 0 100 100"><path d="M 20 45 Q 10 90 20 95 L 80 95 Q 90 90 80 45" fill="#1e1b4b" /><path d="M 22 50 Q 22 20 50 20 Q 78 20 78 50 L 78 75 Q 78 85 50 85 Q 22 85 22 75 Z" fill="#fffbeb" stroke="#451a03" stroke-width="2"/><path d="M 25 20 L 35 12 L 50 18 L 65 12 L 75 20" fill="#facc15" stroke="#854d0e" stroke-width="1"/><g class="eye-blink"><circle cx="40" cy="52" r="5" fill="#000" /><circle cx="60" cy="52" r="5" fill="#000" /></g><path d="M 40 72 Q 50 82 60 72" stroke="#451a03" stroke-width="3" fill="none" stroke-linecap="round" /></svg>`
-        };
-
-        async function initAuth() {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (e) {
-                console.error("Auth failed:", e);
-            }
+        function init() {
+            const saved = localStorage.getItem('pereRaceStateV5');
+            if (saved) state = JSON.parse(saved);
+            render();
         }
 
-        async function loadRoom() {
-            const overlay = document.getElementById('loading-overlay');
-            try {
-                if (!auth.currentUser) await initAuth();
-                
-                const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'challenges', currentRoomId);
-                
-                // Kontrollime algandmeid
-                const snap = await getDoc(roomDocRef);
-                if (!snap.exists()) {
-                    await setDoc(roomDocRef, roomData);
-                }
-
-                // Kuulame muudatusi
-                onSnapshot(roomDocRef, (snapshot) => {
-                    if (snapshot.exists()) {
-                        roomData = snapshot.data();
-                        render();
-                    }
-                    overlay.classList.add('hidden');
-                }, (error) => {
-                    console.error("Viga andmete lugemisel:", error);
-                    overlay.innerHTML = '<p class="text-red-500 p-4 text-center">Viga ühenduse loomisel. Kontrolli internetti.</p>';
-                });
-
-            } catch (error) {
-                console.error("Viga:", error);
-                overlay.innerHTML = '<p class="text-red-500 p-4 text-center">Rakendust ei saanud käivitada.</p>';
-            }
+        function saveState() {
+            localStorage.setItem('pereRaceStateV5', JSON.stringify(state));
         }
 
-        window.joinMember = async (name) => {
+        function joinMember(name) {
             const start = parseFloat(document.getElementById(`input-start-${name}`).value);
             const target = parseFloat(document.getElementById(`input-target-${name}`).value);
-            if (start > 0 && target > 0) {
-                const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', 'challenges', currentRoomId);
-                const update = {};
-                update[`participants.${name}`] = { joined: true, start, current: start, target, lastWeek: start };
-                await updateDoc(roomDoc, update);
-            }
-        };
 
-        window.updateWeight = async () => {
+            if (start > 0 && target > 0) {
+                state.participants[name].start = start;
+                state.participants[name].current = start;
+                state.participants[name].lastWeek = start;
+                state.participants[name].target = target;
+                state.participants[name].joined = true;
+                saveState();
+                render();
+            } else {
+                alert("Palun sisesta kaalunumbrid!");
+            }
+        }
+
+        function updateWeight() {
             const user = document.getElementById('user-select').value;
             const weight = parseFloat(document.getElementById('new-weight').value);
+
             if (weight > 0) {
-                const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', 'challenges', currentRoomId);
-                const update = {};
-                update[`participants.${user}.lastWeek`] = roomData.participants[user].current;
-                update[`participants.${user}.current`] = weight;
-                await updateDoc(roomDoc, update);
+                state.participants[user].lastWeek = state.participants[user].current;
+                state.participants[user].current = weight;
+                saveState();
+                render();
                 document.getElementById('new-weight').value = '';
             }
-        };
+        }
 
-        window.addCustomTask = async () => {
+        function addCustomTask() {
             const input = document.getElementById('custom-task-input');
             const val = input.value.trim();
             if (val) {
-                const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', 'challenges', currentRoomId);
-                await updateDoc(roomDoc, { tasks: arrayUnion(val), currentTask: val });
+                state.tasks.push(val);
+                state.currentTask = val;
                 input.value = '';
+                saveState();
+                render();
             }
-        };
-
-        window.generateTask = async () => {
-            const randomIndex = Math.floor(Math.random() * roomData.tasks.length);
-            const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', 'challenges', currentRoomId);
-            await updateDoc(roomDoc, { currentTask: roomData.tasks[randomIndex] });
-        };
+        }
 
         function calculateProgress(name) {
-            const p = roomData.participants[name];
+            const p = state.participants[name];
             const total = p.start - p.target;
             const lost = p.start - p.current;
             if (total <= 0) return 0;
             return Math.min(100, Math.max(0, (lost / total) * 100)).toFixed(1);
         }
 
+        function generateTask() {
+            const randomIndex = Math.floor(Math.random() * state.tasks.length);
+            state.currentTask = state.tasks[randomIndex];
+            saveState();
+            render();
+        }
+
         function render() {
-            const tracks = document.getElementById('tracks-container');
+            const tracksContainer = document.getElementById('tracks-container');
             const grid = document.getElementById('participants-grid');
             const userSelect = document.getElementById('user-select');
-            const bottom = document.getElementById('bottom-controls');
+            const bottomControls = document.getElementById('bottom-controls');
 
-            tracks.innerHTML = ''; grid.innerHTML = ''; userSelect.innerHTML = '';
+            tracksContainer.innerHTML = '';
+            grid.innerHTML = '';
+            userSelect.innerHTML = '';
+
             let joinedCount = 0;
-            const participants = [];
+            const joinedMembers = [];
 
-            Object.keys(roomData.participants).forEach(name => {
-                const p = roomData.participants[name];
+            Object.keys(state.participants).forEach(name => {
+                const p = state.participants[name];
+                
+                // 1. Render Tracks (only for joined members)
+                if (p.joined) {
+                    joinedCount++;
+                    joinedMembers.push({ name, ...p, progress: calculateProgress(name) });
+                    
+                    const trackDiv = document.createElement('div');
+                    trackDiv.className = 'race-track-container';
+                    trackDiv.innerHTML = `
+                        <div class="flex justify-between items-center text-xs font-bold text-slate-400 uppercase tracking-widest">
+                            <span>${name} rida</span>
+                            <span>Siht: ${p.target} kg</span>
+                        </div>
+                        <div class="individual-track">
+                            <div class="finish-flag">🏁</div>
+                            <div class="runner w-12 h-12 ${parseFloat(calculateProgress(name)) > 0 ? 'anim-active' : ''}" style="left: ${calculateProgress(name)}%">
+                                ${avatars[name]}
+                            </div>
+                        </div>
+                    `;
+                    tracksContainer.innerHTML += trackDiv.outerHTML;
+
+                    // Add to update dropdown
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.innerText = name;
+                    userSelect.appendChild(opt);
+                }
+
+                // 2. Render Cards (Setup or Stats)
                 const card = document.createElement('div');
                 card.className = `bubble-card p-6 flex flex-col items-center ${p.joined ? 'border-b-8 border-blue-400' : 'bg-slate-50/50 border-dashed border-slate-300'}`;
                 
                 if (p.joined) {
-                    joinedCount++;
                     const prog = calculateProgress(name);
-                    participants.push({ name, weeklyLoss: ((p.lastWeek - p.current) / p.lastWeek * 100) });
-                    
-                    tracks.innerHTML += `
-                        <div class="race-track-container">
-                            <div class="flex justify-between text-[10px] font-bold text-slate-400 uppercase"><span>${name} rida</span><span>Siht: ${p.target}kg</span></div>
-                            <div class="individual-track">
-                                <div class="absolute right-[-5px] top-[-25px] text-2xl">🏆</div>
-                                <div class="runner w-12 h-12 ${parseFloat(prog) > 0 ? 'anim-active' : ''}" style="left: ${prog}%">${avatars[name]}</div>
-                            </div>
-                        </div>`;
-
-                    card.innerHTML = `<div class="w-20 h-20 mb-3">${avatars[name]}</div><h4 class="text-xl font-bold">${name}</h4><div class="text-4xl font-bold text-blue-600 my-2">${prog}%</div>
-                        <div class="grid grid-cols-2 w-full text-center border-t pt-4"><div><p class="text-[10px] text-slate-400">Nüüd</p><p class="font-bold">${p.current}kg</p></div>
-                        <div><p class="text-[10px] text-slate-400">Vaja veel</p><p class="font-bold text-blue-500">${Math.max(0, (p.current - p.target).toFixed(1))}kg</p></div></div>`;
-                    
-                    userSelect.innerHTML += `<option value="${name}">${name}</option>`;
+                    card.innerHTML = `
+                        <div class="w-20 h-20 mb-3">${avatars[name]}</div>
+                        <h4 class="text-xl font-bold">${name}</h4>
+                        <div class="text-4xl font-bold text-blue-600 my-2">${prog}%</div>
+                        <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden mb-4 border">
+                            <div class="h-full bg-blue-500 transition-all duration-1000" style="width: ${prog}%"></div>
+                        </div>
+                        <div class="grid grid-cols-2 w-full text-center border-t pt-4">
+                            <div><p class="text-[10px] font-bold text-slate-400 uppercase">Nüüd</p><p class="font-bold">${p.current}kg</p></div>
+                            <div><p class="text-[10px] font-bold text-slate-400 uppercase">Vaja veel</p><p class="font-bold text-blue-500">${Math.max(0, (p.current - p.target).toFixed(1))}kg</p></div>
+                        </div>
+                    `;
                 } else {
-                    card.innerHTML = `<div class="w-20 h-20 mb-3 opacity-30 grayscale">${avatars[name]}</div><h4 class="text-xl font-bold text-slate-400">${name}</h4>
-                        <div class="mt-4 space-y-2 w-full"><input type="number" id="input-start-${name}" placeholder="Algkaal" class="text-xs">
-                        <input type="number" id="input-target-${name}" placeholder="Sihtkaal" class="text-xs">
-                        <button onclick="joinMember('${name}')" class="bg-emerald-500 text-white w-full py-2 rounded-xl font-bold text-xs shadow-md">LIITU</button></div>`;
+                    card.innerHTML = `
+                        <div class="w-20 h-20 mb-3 opacity-30 grayscale">${avatars[name]}</div>
+                        <h4 class="text-xl font-bold text-slate-400">${name} - Ootel</h4>
+                        <div class="mt-4 space-y-3 w-full">
+                            <input type="number" id="input-start-${name}" placeholder="Algkaal (kg)" class="text-sm">
+                            <input type="number" id="input-target-${name}" placeholder="Soovitud kaal (kg)" class="text-sm">
+                            <button onclick="joinMember('${name}')" class="btn-join w-full text-sm">LIITU VÕISTLUSEGA</button>
+                        </div>
+                    `;
                 }
                 grid.appendChild(card);
             });
 
+            // Handle weekly task and visibility
             if (joinedCount > 0) {
-                bottom.classList.remove('hidden');
-                const sorted = [...participants].sort((a, b) => a.weeklyLoss - b.weeklyLoss);
-                document.getElementById('loser-tag').innerText = sorted[0].name.toUpperCase();
-                document.getElementById('weekly-task').innerText = roomData.currentTask;
+                bottomControls.classList.remove('hidden');
+                
+                // Find weekly loser (least % loss from last update)
+                const membersWithProgress = joinedMembers.map(m => ({
+                    ...m,
+                    weeklyLoss: ((m.lastWeek - m.current) / m.lastWeek * 100)
+                }));
+                membersWithProgress.sort((a, b) => a.weeklyLoss - b.weeklyLoss);
+                
+                const loser = membersWithProgress[0];
+                document.getElementById('loser-tag').innerText = loser.name.toUpperCase();
+                document.getElementById('weekly-task').innerText = state.currentTask;
             } else {
-                tracks.innerHTML = '<p class="text-center py-10 text-slate-400 italic">Sisestage andmed, et alustada võistlust!</p>';
+                bottomControls.classList.add('hidden');
+                tracksContainer.innerHTML = '<div class="text-center py-10 text-slate-400 italic">Võistlusrajal pole veel kangelasi. Alusta liitumisega altpoolt!</div>';
             }
         }
 
-        // Käivitus
-        window.addEventListener('load', loadRoom);
+        function resetApp() {
+            if (confirm("Kustutada kõik andmed ja alustada otsast peale?")) {
+                localStorage.removeItem('pereRaceStateV5');
+                location.reload();
+            }
+        }
+
+        window.onload = init;
     </script>
 </body>
 </html>
