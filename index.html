@@ -91,7 +91,7 @@
     </style>
 </head>
 <body class="p-4 md:p-8">
-    <!-- Loading Screen -->
+    <!-- Laadimiskuva -->
     <div id="loading-overlay" class="fixed inset-0 flex items-center justify-center hidden">
         <div class="text-center">
             <i class="fas fa-magic fa-spin text-4xl text-blue-500 mb-4"></i>
@@ -105,7 +105,7 @@
             <p class="text-slate-500 text-xl font-medium">Privaatne ja turvaline väljakutse</p>
         </header>
 
-        <!-- Room Access Screen -->
+        <!-- Sisenemise vaade -->
         <div id="room-screen" class="max-w-md mx-auto bubble-card p-10 text-center">
             <div class="mb-6">
                 <i class="fas fa-user-shield text-5xl text-blue-400"></i>
@@ -116,9 +116,9 @@
             <button onclick="accessRoom()" class="btn-primary w-full text-lg uppercase tracking-wider">Sisene võistlusesse</button>
         </div>
 
-        <!-- Main Content -->
+        <!-- Peamine sisu -->
         <div id="main-content" class="space-y-10 hidden">
-            <!-- Tracks Section -->
+            <!-- Rajad -->
             <div class="bubble-card p-8">
                 <div class="flex justify-between items-center mb-10">
                     <h3 class="text-2xl font-bold text-slate-700">Võistlusraja Vaade</h3>
@@ -130,12 +130,12 @@
                 <div id="tracks-container"></div>
             </div>
 
-            <!-- Participants Grid -->
+            <!-- Osalejad -->
             <div id="participants-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
 
-            <!-- Controls -->
+            <!-- Juhtpaneel -->
             <div id="bottom-controls" class="grid grid-cols-1 lg:grid-cols-2 gap-10 hidden">
-                <!-- Weekly Task -->
+                <!-- Nädala ülesanne -->
                 <div class="bubble-card p-8 border-l-[12px] border-red-400">
                     <div class="flex justify-between items-start mb-6">
                         <div>
@@ -153,7 +153,7 @@
                     </div>
                 </div>
 
-                <!-- Update Weight -->
+                <!-- Kaalu uuendamine -->
                 <div class="bubble-card p-8 border-l-[12px] border-blue-400">
                     <h3 class="text-2xl font-bold mb-6 text-slate-700 flex items-center">
                         <i class="fas fa-weight mr-3 text-blue-500"></i> Märgi uus kaal
@@ -179,7 +179,7 @@
                 </div>
             </div>
 
-            <!-- Footer Info -->
+            <!-- Jalus -->
             <div class="text-center pt-8 pb-4">
                 <p class="text-[10px] text-slate-300 uppercase tracking-[0.2em]">Sinu andmed on krüpteeritud ja turvalises Google pilves</p>
             </div>
@@ -191,7 +191,7 @@
         import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // Global configuration
+        // Firebase seadistus
         const firebaseConfig = JSON.parse(__firebase_config);
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -236,18 +236,13 @@
             currentRoomId = input;
             
             try {
-                // Ensure auth is ready
-                if (!auth.currentUser) {
-                    await initAuth();
-                }
+                if (!auth.currentUser) await initAuth();
+                if (!auth.currentUser) throw new Error("Autentimine ebaõnnestus");
 
-                if (!auth.currentUser) {
-                    throw new Error("Autentimine ebaõnnestus");
-                }
-
-                const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', currentRoomId);
+                // Parandus: Dokumendi tee peab olema paarisarv segmente. 
+                // Lisame 'challenges' alamkollektsiooni enne ID-d.
+                const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'challenges', currentRoomId);
                 
-                // Get initial data
                 const initialSnap = await getDoc(roomDocRef);
                 if (!initialSnap.exists()) {
                     await setDoc(roomDocRef, roomData);
@@ -255,7 +250,6 @@
                     roomData = initialSnap.data();
                 }
 
-                // Start snapshot listener
                 onSnapshot(roomDocRef, (snapshot) => {
                     if (snapshot.exists()) {
                         roomData = snapshot.data();
@@ -284,7 +278,7 @@
             const start = parseFloat(document.getElementById(`input-start-${name}`).value);
             const target = parseFloat(document.getElementById(`input-target-${name}`).value);
             if (start > 0 && target > 0) {
-                const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', currentRoomId);
+                const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', 'challenges', currentRoomId);
                 const update = {};
                 update[`participants.${name}`] = { joined: true, start, current: start, target, lastWeek: start };
                 await updateDoc(roomDoc, update);
@@ -296,7 +290,7 @@
             const user = document.getElementById('user-select').value;
             const weight = parseFloat(document.getElementById('new-weight').value);
             if (weight > 0) {
-                const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', currentRoomId);
+                const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', 'challenges', currentRoomId);
                 const update = {};
                 update[`participants.${user}.lastWeek`] = roomData.participants[user].current;
                 update[`participants.${user}.current`] = weight;
@@ -310,7 +304,7 @@
             const input = document.getElementById('custom-task-input');
             const val = input.value.trim();
             if (val) {
-                const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', currentRoomId);
+                const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', 'challenges', currentRoomId);
                 await updateDoc(roomDoc, { tasks: arrayUnion(val), currentTask: val });
                 input.value = '';
             }
@@ -319,7 +313,7 @@
         window.generateTask = async () => {
             if (!auth.currentUser) return;
             const randomIndex = Math.floor(Math.random() * roomData.tasks.length);
-            const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', currentRoomId);
+            const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', 'challenges', currentRoomId);
             await updateDoc(roomDoc, { currentTask: roomData.tasks[randomIndex] });
         };
 
@@ -360,4 +354,51 @@
                     
                     tracks.innerHTML += `
                         <div class="race-track-container">
-                            <div class="flex justify-between text-[10px] font-bold text-slate-400 uppercase"><span>${name} rida</span><span>Siht:
+                            <div class="flex justify-between text-[10px] font-bold text-slate-400 uppercase"><span>${name} rida</span><span>Siht: ${p.target}kg</span></div>
+                            <div class="individual-track">
+                                <div class="absolute right-[-5px] top-[-25px] text-2xl">🏆</div>
+                                <div class="runner w-12 h-12 ${parseFloat(prog) > 0 ? 'anim-active' : ''}" style="left: ${prog}%">${avatars[name]}</div>
+                            </div>
+                        </div>`;
+
+                    card.innerHTML = `<div class="w-20 h-20 mb-3">${avatars[name]}</div><h4 class="text-xl font-bold">${name}</h4><div class="text-4xl font-bold text-blue-600 my-2">${prog}%</div>
+                        <div class="grid grid-cols-2 w-full text-center border-t pt-4"><div><p class="text-[10px] text-slate-400">Nüüd</p><p class="font-bold">${p.current}kg</p></div>
+                        <div><p class="text-[10px] text-slate-400">Vaja veel</p><p class="font-bold text-blue-500">${Math.max(0, (p.current - p.target).toFixed(1))}kg</p></div></div>`;
+                    
+                    userSelect.innerHTML += `<option value="${name}">${name}</option>`;
+                } else {
+                    card.innerHTML = `<div class="w-20 h-20 mb-3 opacity-30 grayscale">${avatars[name]}</div><h4 class="text-xl font-bold text-slate-400">${name}</h4>
+                        <div class="mt-4 space-y-2 w-full"><input type="number" id="input-start-${name}" placeholder="Algkaal" class="text-xs">
+                        <input type="number" id="input-target-${name}" placeholder="Sihtkaal" class="text-xs">
+                        <button onclick="joinMember('${name}')" class="bg-emerald-500 text-white w-full py-2 rounded-xl font-bold text-xs shadow-md">LIITU</button></div>`;
+                }
+                grid.appendChild(card);
+            });
+
+            if (joinedCount > 0) {
+                bottom.classList.remove('hidden');
+                const sortedParticipants = [...participants].sort((a, b) => a.weeklyLoss - b.weeklyLoss);
+                const loser = sortedParticipants[0];
+                document.getElementById('loser-tag').innerText = loser.name.toUpperCase();
+                document.getElementById('weekly-task').innerText = roomData.currentTask;
+            } else {
+                tracks.innerHTML = '<p class="text-center py-10 text-slate-400 italic">Sisestage andmed, et alustada võistlust!</p>';
+            }
+        }
+
+        window.addEventListener('load', async () => {
+            await initAuth();
+            if (currentRoomId) {
+                const roomInput = document.getElementById('room-id-input');
+                if (roomInput) {
+                    roomInput.value = currentRoomId;
+                    accessRoom();
+                }
+            }
+        });
+
+        window.accessRoom = accessRoom;
+        onAuthStateChanged(auth, (user) => { if (user && currentRoomId) render(); });
+    </script>
+</body>
+</html>
