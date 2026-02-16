@@ -127,9 +127,31 @@
             background: rgba(0,0,0,0.5);
             backdrop-filter: blur(4px);
         }
+
+        /* Loading overlay for cloud load */
+        #cloud-loader {
+            position: fixed;
+            inset: 0;
+            background: rgba(240, 249, 255, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8">
+    <!-- Cloud Loading Overlay -->
+    <div id="cloud-loader" class="hidden">
+        <div class="text-center">
+            <i class="fas fa-cloud-download-alt fa-spin text-5xl text-blue-500 mb-4"></i>
+            <p class="text-xl font-bold text-slate-700">Laadin andmeid pilvest...</p>
+            <p class="text-sm text-slate-400 mt-2">See võtab vaid hetke</p>
+        </div>
+    </div>
+
     <div id="app" class="max-w-5xl mx-auto">
         <header class="text-center mb-10">
             <h1 class="text-5xl md:text-7xl font-bold text-blue-600 drop-shadow-sm mb-2">Pere Võidujooks! 🏁</h1>
@@ -250,7 +272,7 @@
         const avatars = {
             Meelis: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M 20 50 Q 20 15 50 15 Q 80 15 80 50 L 80 75 Q 80 85 50 85 Q 20 85 20 75 Z" fill="#fef3c7" stroke="#451a03" stroke-width="2"/><path d="M 20 45 Q 20 15 50 15 Q 80 15 80 45" fill="#475569" /><path d="M 20 45 Q 20 30 30 20 M 80 45 Q 80 30 70 20" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/><g class="eye-blink"><circle cx="38" cy="48" r="4" fill="#000" /><circle cx="62" cy="48" r="4" fill="#000" /></g><path d="M 42 70 Q 50 78 58 70" stroke="#451a03" stroke-width="3" fill="none" stroke-linecap="round" /></svg>`,
             Astrid: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M 20 50 Q 20 15 50 15 Q 80 15 80 50 L 80 75 Q 80 85 50 85 Q 20 85 20 75 Z" fill="#fff7ed" stroke="#451a03" stroke-width="2"/><path d="M 15 45 Q 15 5 50 5 Q 85 5 85 45 L 90 60 Q 90 70 80 70 L 20 70 Q 10 70 10 60 Z" fill="#f97316" /><g class="eye-blink"><circle cx="38" cy="50" r="4.5" fill="#000" /><circle cx="62" cy="50" r="4.5" fill="#000" /></g><path d="M 40 72 Q 50 80 60 72" stroke="#be185d" stroke-width="3" fill="none" stroke-linecap="round" /></svg>`,
-            Emili: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M 20 45 Q 10 90 20 95 L 80 95 Q 90 90 80 45" fill="#1e1b4b" /><path d="M 22 50 Q 22 20 50 20 Q 78 20 78 50 L 78 75 Q 78 85 50 85 Q 22 85 22 75 Z" fill="#fffbeb" stroke="#451a03" stroke-width="2"/><path d="M 25 20 L 35 12 L 50 18 L 65 12 L 75 20" fill="#facc15" stroke="#854d0e" stroke-width="1" /><g class="eye-blink"><circle cx="40" cy="52" r="5" fill="#000" /><circle cx="60" cy="52" r="5" fill="#000" /><circle cx="42" cy="50" r="1.5" fill="#fff" /><circle cx="62" cy="50" r="1.5" fill="#fff" /></g><path d="M 40 72 Q 50 82 60 72" stroke="#451a03" stroke-width="3" fill="none" stroke-linecap="round" /><circle cx="30" cy="65" r="3" fill="#fecaca" opacity="0.5"/><circle cx="70" cy="65" r="3" fill="#fecaca" opacity="0.5"/></svg>`
+            Emili: `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M 20 45 Q 10 90 20 95 L 80 95 Q 90 90 80 45" fill="#1e1b4b" /><path d="M 22 50 Q 22 20 50 20 Q 78 20 78 50 L 78 75 Q 78 85 50 85 Q 22 85 22 75 Z" fill="#fffbeb" stroke="#451a03" stroke-width="2"/><path d="M 35 20 L 40 10 L 50 15 L 60 10 L 65 20 Z" fill="#facc15" stroke="#854d0e" stroke-width="1" /><g class="eye-blink"><circle cx="40" cy="52" r="5" fill="#000" /><circle cx="60" cy="52" r="5" fill="#000" /><circle cx="42" cy="50" r="1.5" fill="#fff" /><circle cx="62" cy="50" r="1.5" fill="#fff" /></g><path d="M 40 72 Q 50 82 60 72" stroke="#451a03" stroke-width="3" fill="none" stroke-linecap="round" /><circle cx="30" cy="65" r="3" fill="#fecaca" opacity="0.5"/><circle cx="70" cy="65" r="3" fill="#fecaca" opacity="0.5"/></svg>`
         };
 
         const DEFAULT_STATE = {
@@ -292,25 +314,25 @@
         async function cloudLoad() {
             try {
                 updateSyncStatus("loading", "Laen pilvest...");
-                const url = `${API_URL}?raceId=${encodeURIComponent(RACE_ID)}`;
+                const url = `${API_URL}?raceId=${encodeURIComponent(RACE_ID)}&t=${Date.now()}`;
                 const res = await fetch(url);
                 const data = await res.json();
                 if (data && data.ok && data.found && data.state) {
                     updateSyncStatus("success", "Andmed pilvest laetud");
                     return data.state;
                 }
-                updateSyncStatus("success", "Alustame tühjalt lehelt");
+                updateSyncStatus("success", "Pilv on tühi");
                 return null;
             } catch (e) {
                 console.error("Sync error", e);
-                updateSyncStatus("error", "Pilve viga (GET)");
+                updateSyncStatus("error", "Pilve viga");
                 return null;
             }
         }
 
         async function cloudSave(nextState) {
             try {
-                updateSyncStatus("loading", "Salvestan pilve...");
+                updateSyncStatus("loading", "Salvestan...");
                 const res = await fetch(API_URL, {
                     method: "POST",
                     body: JSON.stringify({ raceId: RACE_ID, token: WRITE_TOKEN, state: nextState })
@@ -319,31 +341,29 @@
                 if (data && data.ok) {
                     updateSyncStatus("success", "Andmed sünkroonis");
                 } else {
-                    updateSyncStatus("error", "Salvestamine ebaõnnestus");
+                    updateSyncStatus("error", "Viga salvestamisel");
                 }
             } catch (e) {
                 console.error("Sync error", e);
-                updateSyncStatus("error", "Pilve viga (POST)");
+                updateSyncStatus("error", "Pilve ühenduse viga");
             }
         }
 
         function updateSyncStatus(type, text) {
             const icon = document.getElementById('sync-icon');
             const statusText = document.getElementById('sync-text');
-            statusText.innerText = text;
-            if (type === "loading") {
-                icon.className = "fas fa-spinner fa-spin text-blue-500";
-            } else if (type === "error") {
-                icon.className = "fas fa-exclamation-circle text-red-500";
-            } else {
-                icon.className = "fas fa-check-circle text-green-500";
+            if (statusText) statusText.innerText = text;
+            if (icon) {
+                if (type === "loading") icon.className = "fas fa-spinner fa-spin text-blue-500";
+                else if (type === "error") icon.className = "fas fa-exclamation-circle text-red-500";
+                else icon.className = "fas fa-check-circle text-green-500";
             }
         }
 
         function saveState() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
             if (saveTimer) clearTimeout(saveTimer);
-            saveTimer = setTimeout(() => cloudSave(state), 1000);
+            saveTimer = setTimeout(() => cloudSave(state), 1500);
         }
 
         // --- GAME LOGIC ---
@@ -378,7 +398,8 @@
         function updateCountdown() {
             const diff = new Date(state.deadline) - new Date();
             const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-            document.getElementById('days-left').innerText = Math.max(0, days);
+            const el = document.getElementById('days-left');
+            if (el) el.innerText = Math.max(0, days);
         }
 
         window.joinMember = (name) => {
@@ -436,7 +457,11 @@
             const userSelect = document.getElementById('user-select');
             const bottom = document.getElementById('bottom-controls');
 
-            tracks.innerHTML = ''; grid.innerHTML = ''; userSelect.innerHTML = '';
+            if (!tracks || !grid) return;
+
+            tracks.innerHTML = ''; grid.innerHTML = ''; 
+            if (userSelect) userSelect.innerHTML = '';
+            
             let joinedCount = 0;
             const joinedList = [];
 
@@ -456,7 +481,7 @@
                                 <div class="runner w-14 h-14 ${prog > 0 ? 'anim-active' : ''}" style="left: ${prog}%">${avatars[name]}</div>
                             </div>
                         </div>`;
-                    userSelect.innerHTML += `<option value="${name}">${name}</option>`;
+                    if (userSelect) userSelect.innerHTML += `<option value="${name}">${name}</option>`;
 
                     grid.innerHTML += `
                         <div class="bubble-card p-6 flex flex-col items-center border-b-8 border-blue-400 shadow-lg">
@@ -486,12 +511,14 @@
             });
 
             if (joinedCount > 0) {
-                bottom.classList.remove('hidden');
-                const loser = joinedList.sort((a, b) => a.weeklyLoss - b.weeklyLoss)[0];
-                document.getElementById('loser-tag').innerText = loser.name.toUpperCase();
-                document.getElementById('weekly-task').innerText = state.currentTask;
+                if (bottom) bottom.classList.remove('hidden');
+                const sorted = [...joinedList].sort((a, b) => a.weeklyLoss - b.weeklyLoss);
+                const loserTag = document.getElementById('loser-tag');
+                const weeklyTask = document.getElementById('weekly-task');
+                if (loserTag) loserTag.innerText = sorted[0].name.toUpperCase();
+                if (weeklyTask) weeklyTask.innerText = state.currentTask;
             } else {
-                bottom.classList.add('hidden');
+                if (bottom) bottom.classList.add('hidden');
                 tracks.innerHTML = '<div class="text-center py-10 text-slate-400 italic">Alusta liitumisega altpoolt!</div>';
             }
         }
@@ -511,12 +538,17 @@
         };
 
         async function initCloudSync() {
+            const loader = document.getElementById('cloud-loader');
+            if (!localStorage.getItem(STORAGE_KEY)) {
+                loader.classList.remove('hidden');
+            }
             const remote = await cloudLoad();
             if (remote) {
                 state = normalizeState(remote);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
                 render();
             }
+            loader.classList.add('hidden');
         }
 
         window.resetApp = () => { 
@@ -529,7 +561,10 @@
 
         window.onload = async () => {
             const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) state = normalizeState(JSON.parse(saved));
+            if (saved) {
+                state = normalizeState(JSON.parse(saved));
+                render();
+            }
             await initCloudSync();
             ensureWeek(); updateCountdown(); setInterval(updateCountdown, 60000); render();
         };
