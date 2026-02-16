@@ -191,8 +191,18 @@
         import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // Firebase seadistus
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // TÄHTIS: Kui majutad koodi GitHubis, siis siinsed muutujad __firebase_config jms ei pruugi töötada.
+        // GitHubis kasutamiseks pead siia kleepima oma Firebase projekti andmed:
+        // const manualConfig = { apiKey: "...", authDomain: "...", projectId: "...", ... };
+        
+        let firebaseConfig;
+        try {
+            firebaseConfig = JSON.parse(__firebase_config);
+        } catch (e) {
+            console.error("Firebase config puudub. GitHubis majutades lisa siia oma config.");
+            // firebaseConfig = manualConfig; 
+        }
+
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
@@ -223,7 +233,7 @@
                     await signInAnonymously(auth);
                 }
             } catch (e) {
-                console.error("Auth failed:", e);
+                console.error("Autentimine ebaõnnestus:", e);
             }
         }
 
@@ -237,10 +247,9 @@
             
             try {
                 if (!auth.currentUser) await initAuth();
-                if (!auth.currentUser) throw new Error("Autentimine ebaõnnestus");
+                if (!auth.currentUser) throw new Error("Pilvega ühendumine ebaõnnestus. Kontrolli internetti.");
 
-                // Parandus: Dokumendi tee peab olema paarisarv segmente. 
-                // Lisame 'challenges' alamkollektsiooni enne ID-d.
+                // Täpne 6-segmendiline tee: artifacts -> appId -> public -> data -> challenges -> roomId
                 const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'challenges', currentRoomId);
                 
                 const initialSnap = await getDoc(roomDocRef);
@@ -261,20 +270,20 @@
                     document.getElementById('main-content').classList.remove('hidden');
                     document.getElementById('display-room-id').innerText = `GRUPP: ${currentRoomId}`;
                 }, (error) => {
-                    console.error("Snapshot error:", error);
+                    console.error("Andmebaasi viga:", error);
                     overlay.classList.add('hidden');
-                    alert("Andmete lugemise viga. Proovi uuesti.");
+                    alert("Andmete lugemine ebaõnnestus. Kas oled lisanud oma Firebase konfi?");
                 });
 
             } catch (error) {
-                console.error("Access room error:", error);
+                console.error("Access error:", error);
                 overlay.classList.add('hidden');
-                alert("Viga: " + error.message);
+                alert(error.message);
             }
         }
 
         window.joinMember = async (name) => {
-            if (!auth.currentUser) return;
+            if (!auth.currentUser || !currentRoomId) return;
             const start = parseFloat(document.getElementById(`input-start-${name}`).value);
             const target = parseFloat(document.getElementById(`input-target-${name}`).value);
             if (start > 0 && target > 0) {
@@ -286,7 +295,7 @@
         };
 
         window.updateWeight = async () => {
-            if (!auth.currentUser) return;
+            if (!auth.currentUser || !currentRoomId) return;
             const user = document.getElementById('user-select').value;
             const weight = parseFloat(document.getElementById('new-weight').value);
             if (weight > 0) {
@@ -300,7 +309,7 @@
         };
 
         window.addCustomTask = async () => {
-            if (!auth.currentUser) return;
+            if (!auth.currentUser || !currentRoomId) return;
             const input = document.getElementById('custom-task-input');
             const val = input.value.trim();
             if (val) {
@@ -311,7 +320,7 @@
         };
 
         window.generateTask = async () => {
-            if (!auth.currentUser) return;
+            if (!auth.currentUser || !currentRoomId) return;
             const randomIndex = Math.floor(Math.random() * roomData.tasks.length);
             const roomDoc = doc(db, 'artifacts', appId, 'public', 'data', 'challenges', currentRoomId);
             await updateDoc(roomDoc, { currentTask: roomData.tasks[randomIndex] });
